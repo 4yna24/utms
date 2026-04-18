@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Flask Monolith</title>
+</head>
+<body>
+    <h1>Scaling Flask Project</h1>
+    <button id="helloBtn">Touch Me</button>
+    <p id="responseText"></p>
+
+    <script>
+        document.getElementById('helloBtn').onclick = function() {
+            fetch('/test-btn', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('responseText').innerText = data.message;
+                });
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>University Transfer System - Dashboard</title>
+    
+</head>
+<body>
+    <nav>
+        <a href="{{ url_for('auth.logout') }}">Logout</a>
+    </nav>
+
+    <h1>Welcome to the Dashboard</h1>
+    
+    <p>Logged in as: <strong>{{ email }}</strong></p>
+
+    <div class="staff-actions">
+        <h3>Your Tasks</h3>
+        <ul>
+            <li>Check Student Documents</li>
+            <li>Verify GPA Records</li>
+        </ul>
+    </div>
+</body>
+</html>
