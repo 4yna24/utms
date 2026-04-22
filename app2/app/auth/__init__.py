@@ -1,5 +1,5 @@
 from flask import Blueprint
-from .routes import RegisterView, LoginView, LogoutView
+from .views import RegisterView, LoginView, LogoutView
 
 
 def create_auth_blueprint(role_name, role_slug):

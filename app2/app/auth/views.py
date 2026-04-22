@@ -1,7 +1,7 @@
 from flask import render_template, request, redirect, url_for, session, flash
 from flask.views import MethodView
-from app.models import User
-from app import db
+
+from app.database import get_user_data_interface
 
 
 class RoleView(MethodView):
@@ -33,17 +33,15 @@ class RegisterView(RoleView):
         return render_template('register.html', **self.template_context())
 
     def post(self):
+        user_data = get_user_data_interface()
         email = request.form.get('email')
         password = request.form.get('password')
-        
-        if User.query.filter_by(email=email, role=self.role_slug).first():
-            flash(f"Email already exists for {self.role_name}")
+
+        if user_data.find_by_email_role(email, self.role_slug):
+            flash(f'Email already exists for {self.role_name}')
             return redirect(url_for(self.auth_endpoint('register')))
 
-        user = User(email=email, role=self.role_slug)
-        user.set_password(password)
-        db.session.add(user)
-        db.session.commit()
+        user_data.create_user(email=email, password=password, role=self.role_slug)
         return redirect(url_for(self.auth_endpoint('login')))
 
 
@@ -52,17 +50,18 @@ class LoginView(RoleView):
         return render_template('login.html', **self.template_context())
 
     def post(self):
+        user_data = get_user_data_interface()
         email = request.form.get('email')
         password = request.form.get('password')
-        user = User.query.filter_by(email=email, role=self.role_slug).first()
+        user = user_data.find_by_email_role(email, self.role_slug)
 
         if user and user.check_password(password):
             session['user_id'] = user.id
             session['user_email'] = user.email
             session['user_role'] = self.role_slug
             return redirect(url_for(self.dashboard_endpoint('index')))
-        
-        flash(f"Invalid email or password for {self.role_name}")
+
+        flash(f'Invalid email or password for {self.role_name}')
         return redirect(url_for(self.auth_endpoint('login')))
 
 

@@ -38,6 +38,8 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)
+    from app.database import init_database_interfaces
+    init_database_interfaces(app)
 
     from app.auth import create_auth_blueprint
     from app.dashboard import create_dashboard_blueprint

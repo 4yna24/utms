@@ -1,5 +1,5 @@
 from flask import Blueprint
-from .routes import DashboardView
+from .views import DashboardView
 
 
 def create_dashboard_blueprint(role_name, role_slug):
