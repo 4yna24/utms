@@ -13,12 +13,19 @@
 </head>
 <body>
     <nav>
-        <a href="{{ url_for('dashboard.index') }}">Dashboard</a> |
-        {% if session.get('user_id') %}
-            <a href="{{ url_for('auth.logout') }}">Logout</a>
+        <a href="{{ url_for('home') }}">Portals</a>
+        {% if dashboard_endpoint %}
+            | <a href="{{ url_for(dashboard_endpoint) }}">{{ role_name }} Dashboard</a>
+        {% endif %}
+        {% if session.get('user_id') and session.get('user_role') == role_slug and logout_endpoint %}
+            | <a href="{{ url_for(logout_endpoint) }}">Logout</a>
         {% else %}
-            <a href="{{ url_for('auth.login') }}">Login</a> |
-            <a href="{{ url_for('auth.register') }}">Register</a>
+            {% if login_endpoint %}
+                | <a href="{{ url_for(login_endpoint) }}">Login</a>
+            {% endif %}
+            {% if register_endpoint %}
+                | <a href="{{ url_for(register_endpoint) }}">Register</a>
+            {% endif %}
         {% endif %}
     </nav>
 

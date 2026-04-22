@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}Register - Uni System{% endblock %}
+{% block title %}{{ role_name }} Register - Uni System{% endblock %}
 
 {% block content %}
-    <h1>Create Account</h1>
+    <h1>Create {{ role_name }} Account</h1>
     <form method="POST">
         <label>Email:</label><br>
         <input type="email" name="email" required><br><br>
@@ -13,4 +13,6 @@
         
         <button type="submit">Register</button>
     </form>
+
+    <p>Already have an account? <a href="{{ url_for(login_endpoint) }}">Login here</a>.</p>
 {% endblock %}

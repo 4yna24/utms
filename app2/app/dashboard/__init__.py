@@ -1,12 +1,11 @@
 from flask import Blueprint
-from flask import Blueprint
-from .routes import DashboardView  # Assuming you named the class in routes.py or views.py
+from .routes import DashboardView
 
-# 1. Define the Blueprint
-# 'dashboard' is the name of the blueprint (used for url_for)
-# __name__ helps Flask locate the templates folder relative to this file
-dash_bp = Blueprint('dashboard', __name__)
 
-# 2. Register the Class-based view
-# We map the '/' of this blueprint to the DashboardView class
-dash_bp.add_url_rule('/', view_func=DashboardView.as_view('index'))
+def create_dashboard_blueprint(role_name, role_slug):
+    dash_bp = Blueprint(f'{role_slug}_dashboard', __name__)
+    dash_bp.add_url_rule(
+        '/',
+        view_func=DashboardView.as_view('index', role_name=role_name, role_slug=role_slug),
+    )
+    return dash_bp
