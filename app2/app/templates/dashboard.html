@@ -3,14 +3,113 @@
 {% block title %}{{ role_name }} Dashboard - Uni System{% endblock %}
 
 {% block content %}
-    <h1>Welcome to the {{ role_name }} Dashboard</h1>
-    <p>Logged in as: <strong>{{ email }}</strong></p>
+    <section class="window-shell">
+        <div class="window-body">
+            <div class="dashboard-title-row">
+                <h1>{{ role_name }} Dashboard</h1>
+                <a class="logout-inline" href="{{ url_for('auth.logout') }}">Logout</a>
+            </div>
+            <p class="subline">Logged in as {{ email }}. Tabs are arranged in a browser-style top strip.</p>
 
-    <div class="staff-actions">
-        <h3>{{ role_name }} Tasks</h3>
-        <ul>
-            <li>Review assigned applications</li>
-            <li>Update transfer decisions</li>
-        </ul>
-    </div>
+            <div class="tab-strip">
+                <div class="tab active">Main</div>
+                {% for tab in tabs %}
+                    <div class="tab">{{ tab.title }}</div>
+                {% endfor %}
+            </div>
+
+            <div class="workspace-area">
+                <section class="workspace-main">
+                    <h3>Main Overview</h3>
+                    <p class="subline">This main pane contains quick blocks that mirror the top tabs.</p>
+                    <div class="cards-grid">
+                        {% for tab in tabs %}
+                            <article class="module-card">
+                                <h4>{{ tab.title }}</h4>
+                                <p>{{ tab.description }}</p>
+                                {% if tab.period_open is defined %}
+                                    {% if tab.period_open %}
+                                        <p class="tag-open">Period status: Open</p>
+                                    {% else %}
+                                        <p class="tag-closed">Period status: Closed</p>
+                                    {% endif %}
+                                {% endif %}
+                                <a href="{{ url_for(tab.endpoint) }}">Open module</a>
+                            </article>
+                        {% endfor %}
+                    </div>
+                </section>
+            </div>
+        </div>
+    </section>
+
+    <style>
+        .dashboard-title-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .dashboard-title-row h1 { margin-bottom: 0; }
+
+        .logout-inline {
+            text-decoration: none;
+            color: #22364f;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .logout-inline:hover { text-decoration: underline; }
+
+        .tab-strip {
+            display: flex;
+            gap: 6px;
+            border-bottom: 1px solid var(--line);
+            padding-bottom: 0;
+            margin: 14px 0 16px;
+            overflow-x: auto;
+        }
+
+        .tab {
+            white-space: nowrap;
+            padding: 8px 12px;
+            border: 1px solid #bdc8d8;
+            border-bottom: 0;
+            border-radius: 11px 11px 0 0;
+            background: linear-gradient(#eaf0fa, #d7deea);
+            color: #2f3f55;
+            font-size: 14px;
+        }
+
+        .tab.active {
+            background: #ffffff;
+            color: #101a28;
+            position: relative;
+            top: 1px;
+            font-weight: 600;
+        }
+
+        .workspace-area {
+            border: 1px solid #c4ccda;
+            border-radius: 0 12px 12px 12px;
+            background: #ffffff;
+            padding: 14px;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        .module-card {
+            border: 1px solid #d3d9e3;
+            border-radius: 10px;
+            background: #f8faff;
+            padding: 12px;
+        }
+
+        .module-card h4 { margin-bottom: 6px; }
+    </style>
 {% endblock %}

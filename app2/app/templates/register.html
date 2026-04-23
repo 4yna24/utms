@@ -1,18 +1,35 @@
 {% extends "base.html" %}
 
-{% block title %}{{ role_name }} Register - Uni System{% endblock %}
+{% block title %}{{ page_title or 'Register' }} - Uni System{% endblock %}
 
 {% block content %}
-    <h1>Create {{ role_name }} Account</h1>
-    <form method="POST">
-        <label>Email:</label><br>
-        <input type="email" name="email" required><br><br>
-        
-        <label>Password:</label><br>
-        <input type="password" name="password" required><br><br>
-        
-        <button type="submit">Register</button>
-    </form>
+    <section class="window-shell auth-shell">
+        <div class="window-body">
+            <h1>{{ form_title or 'Create Account' }}</h1>
+            <p class="subline">Create your account in the dedicated auth workspace.</p>
+            <form method="POST">
+                <label>Email</label><br>
+                <input type="email" name="email" required><br><br>
 
-    <p>Already have an account? <a href="{{ url_for(login_endpoint) }}">Login here</a>.</p>
+                <label>Password</label><br>
+                <input type="password" name="password" required><br><br>
+
+                {% if show_role_selector %}
+                    <label>Role</label><br>
+                    <select name="role" required>
+                        <option value="">Select role</option>
+                        {% for role in roles %}
+                            <option value="{{ role.slug }}" {% if role_value == role.slug %}selected{% endif %}>{{ role.name }}</option>
+                        {% endfor %}
+                    </select><br><br>
+                {% else %}
+                    <input type="hidden" name="role" value="{{ role_value }}">
+                {% endif %}
+
+                <button type="submit">{{ submit_label or 'Register' }}</button>
+            </form>
+
+            <p>Already have an account? <a href="{{ url_for(login_link_endpoint or 'auth.login') }}">Login here</a>.</p>
+        </div>
+    </section>
 {% endblock %}

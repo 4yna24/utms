@@ -1,0 +1,227 @@
+"""Authentication blueprint for all roles."""
+
+from __future__ import annotations
+
+from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+
+from ..classes.auth import AuthClass
+from ..config import ROLE_DEFINITIONS
+
+auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
+STAFF_ROLE_DEFINITIONS = [role for role in ROLE_DEFINITIONS if role["slug"] != "applicant"]
+
+
+def _render_login(template_context: dict):
+    return render_template("login.html", **template_context)
+
+
+def _render_register(template_context: dict):
+    return render_template("register.html", **template_context)
+
+
+def _redirect_if_authenticated():
+    if session.get("user_id"):
+        return redirect(url_for("dashboard.index"))
+    return None
+
+
+@auth_bp.route("/register", methods=["GET", "POST"])
+def register():
+    """Backward-compatible register entry; defaults to staff auth."""
+    if session.get("user_id"):
+        return redirect(url_for("dashboard.index"))
+    return redirect(url_for("auth.staff_register"))
+
+
+@auth_bp.route("/login", methods=["GET", "POST"])
+def login():
+    """Backward-compatible login entry route."""
+    if session.get("user_id"):
+        return redirect(url_for("dashboard.index"))
+    target_role = request.args.get("role")
+    if target_role == "applicant":
+        return redirect(url_for("auth.applicant_login"))
+    if target_role in {role["slug"] for role in STAFF_ROLE_DEFINITIONS}:
+        return redirect(url_for("auth.staff_login", role=target_role))
+    return redirect(url_for("auth.staff_login"))
+
+
+@auth_bp.route("/applicant", methods=["GET"])
+def applicant_portal():
+    """Applicant auth entry point."""
+    if session.get("user_id"):
+        return redirect(url_for("dashboard.index"))
+    return redirect(url_for("auth.applicant_login"))
+
+
+@auth_bp.route("/staff", methods=["GET"])
+def staff_portal():
+    """Staff auth entry point."""
+    if session.get("user_id"):
+        return redirect(url_for("dashboard.index"))
+    return redirect(url_for("auth.staff_login"))
+
+
+@auth_bp.route("/applicant/register", methods=["GET", "POST"])
+def applicant_register():
+    """Registration dedicated to applicants."""
+    already_authenticated = _redirect_if_authenticated()
+    if already_authenticated:
+        return already_authenticated
+
+    auth_service = AuthClass()
+
+    if request.method == "POST":
+        email = (request.form.get("email") or "").strip().lower()
+        password = request.form.get("password") or ""
+        role = "applicant"
+
+        if not email or not password:
+            flash("All fields are required.")
+            return redirect(url_for("auth.applicant_register"))
+
+        user = auth_service.register_user(email=email, password=password, role=role, check_user_validity=True)
+        if user is None:
+            flash("Email already exists for applicant role.")
+            return redirect(url_for("auth.applicant_register"))
+
+        flash("Registration successful. Please login.")
+        return redirect(url_for("auth.applicant_login"))
+
+    return _render_register(
+        {
+            "page_title": "Applicant Register",
+            "form_title": "Create Applicant Account",
+            "submit_label": "Register as Applicant",
+            "show_role_selector": False,
+            "role_value": "applicant",
+            "login_link_endpoint": "auth.applicant_login",
+        }
+    )
+
+
+@auth_bp.route("/applicant/login", methods=["GET", "POST"])
+def applicant_login():
+    """Login dedicated to applicants."""
+    already_authenticated = _redirect_if_authenticated()
+    if already_authenticated:
+        return already_authenticated
+
+    auth_service = AuthClass()
+
+    if request.method == "POST":
+        email = (request.form.get("email") or "").strip().lower()
+        password = request.form.get("password") or ""
+
+        if not email or not password:
+            flash("All fields are required.")
+            return redirect(url_for("auth.applicant_login"))
+
+        user = auth_service.authenticate_user(email=email, password=password, role="applicant")
+        if user is None:
+            flash("Invalid credentials.")
+            return redirect(url_for("auth.applicant_login"))
+
+        session["user_id"] = user.id
+        session["user_email"] = user.email
+        session["user_role"] = user.role
+        return redirect(url_for("dashboard.index"))
+
+    return _render_login(
+        {
+            "page_title": "Applicant Login",
+            "form_title": "Applicant Personal Login",
+            "submit_label": "Login as Applicant",
+            "show_role_selector": False,
+            "role_value": "applicant",
+            "register_link_endpoint": "auth.applicant_register",
+        }
+    )
+
+
+@auth_bp.route("/staff/register", methods=["GET", "POST"])
+def staff_register():
+    """Registration dedicated to staff roles."""
+    already_authenticated = _redirect_if_authenticated()
+    if already_authenticated:
+        return already_authenticated
+
+    auth_service = AuthClass()
+
+    if request.method == "POST":
+        email = (request.form.get("email") or "").strip().lower()
+        password = request.form.get("password") or ""
+        role = request.form.get("role") or ""
+
+        if not email or not password or role not in {item["slug"] for item in STAFF_ROLE_DEFINITIONS}:
+            flash("All fields are required and role must be a staff role.")
+            return redirect(url_for("auth.staff_register"))
+
+        user = auth_service.register_user(email=email, password=password, role=role, check_user_validity=True)
+        if user is None:
+            flash("Email already exists for selected role.")
+            return redirect(url_for("auth.staff_register"))
+
+        flash("Registration successful. Please login.")
+        return redirect(url_for("auth.staff_login", role=role))
+
+    return _render_register(
+        {
+            "page_title": "Staff Register",
+            "form_title": "Create Staff Account",
+            "submit_label": "Register Staff Account",
+            "show_role_selector": True,
+            "roles": STAFF_ROLE_DEFINITIONS,
+            "role_value": request.args.get("role", ""),
+            "login_link_endpoint": "auth.staff_login",
+        }
+    )
+
+
+@auth_bp.route("/staff/login", methods=["GET", "POST"])
+def staff_login():
+    """Login dedicated to staff roles."""
+    already_authenticated = _redirect_if_authenticated()
+    if already_authenticated:
+        return already_authenticated
+
+    auth_service = AuthClass()
+    staff_slugs = {item["slug"] for item in STAFF_ROLE_DEFINITIONS}
+
+    if request.method == "POST":
+        email = (request.form.get("email") or "").strip().lower()
+        password = request.form.get("password") or ""
+        role = request.form.get("role") or ""
+
+        if not email or not password or role not in staff_slugs:
+            flash("All fields are required and role must be a staff role.")
+            return redirect(url_for("auth.staff_login"))
+
+        user = auth_service.authenticate_user(email=email, password=password, role=role)
+        if user is None:
+            flash("Invalid credentials.")
+            return redirect(url_for("auth.staff_login", role=role))
+
+        session["user_id"] = user.id
+        session["user_email"] = user.email
+        session["user_role"] = user.role
+        return redirect(url_for("dashboard.index"))
+
+    return _render_login(
+        {
+            "page_title": "Staff Login",
+            "form_title": "Staff Workspace Login",
+            "submit_label": "Login to Staff Workspace",
+            "show_role_selector": True,
+            "roles": STAFF_ROLE_DEFINITIONS,
+            "role_value": request.args.get("role", ""),
+            "register_link_endpoint": "auth.staff_register",
+        }
+    )
+
+
+@auth_bp.route("/logout", methods=["GET"])
+def logout():
+    """Clear auth session."""
+    session.clear()
+    return redirect(url_for("home"))

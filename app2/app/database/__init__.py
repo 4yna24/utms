@@ -5,6 +5,7 @@ from .adapters import SQLAlchemyDatabaseAdapter, SQLAlchemyUserDataService
 
 def init_database_interfaces(app):
     database_interface = SQLAlchemyDatabaseAdapter()
+    database_interface.connect()
     user_data_interface = SQLAlchemyUserDataService(database_interface)
 
     app.extensions['database_interface'] = database_interface
