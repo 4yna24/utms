@@ -9,19 +9,25 @@
                 <h1>{{ role_name }} Dashboard</h1>
                 <a class="logout-inline" href="{{ url_for('auth.logout') }}">Logout</a>
             </div>
-            <p class="subline">Logged in as {{ email }}. Tabs are arranged in a browser-style top strip.</p>
+            <p class="subline">Logged in as {{ email }}. Use the workspace buttons to switch between in-page sections.</p>
 
-            <div class="tab-strip">
-                <div class="tab active">Main</div>
+            <div class="tab-strip" role="tablist" aria-label="Dashboard sections">
+                <button class="tab-button active" type="button" data-target="panel-main" aria-pressed="true">Main</button>
                 {% for tab in tabs %}
-                    <div class="tab">{{ tab.title }}</div>
+                    <button class="tab-button" type="button" data-target="panel-{{ loop.index }}" aria-pressed="false">{{ tab.title }}</button>
                 {% endfor %}
             </div>
 
             <div class="workspace-area">
-                <section class="workspace-main">
-                    <h3>Main Overview</h3>
-                    <p class="subline">This main pane contains quick blocks that mirror the top tabs.</p>
+                <section class="workspace-panel active" id="panel-main" data-panel="main">
+                    <div class="panel-header">
+                        <div>
+                            <h3>Main Overview</h3>
+                            <p class="subline">This area acts like the default dashboard scene and mirrors the role sections below.</p>
+                        </div>
+                        <span class="panel-badge">Workspace</span>
+                    </div>
+
                     <div class="cards-grid">
                         {% for tab in tabs %}
                             <article class="module-card">
@@ -34,14 +40,149 @@
                                         <p class="tag-closed">Period status: Closed</p>
                                     {% endif %}
                                 {% endif %}
-                                <a href="{{ url_for(tab.endpoint) }}">Open module</a>
+                                <button class="soft-btn compact tab-jump" type="button" data-target="panel-{{ loop.index }}">Open in workspace</button>
                             </article>
                         {% endfor %}
                     </div>
                 </section>
+
+                {% for tab in tabs %}
+                    <section class="workspace-panel" id="panel-{{ loop.index }}" data-panel="{{ tab.title|lower|replace(' ', '-') }}">
+                        <div class="panel-header">
+                            <div>
+                                <h3>{{ tab.title }}</h3>
+                                <p class="subline">{{ tab.description }}</p>
+                            </div>
+                        </div>
+
+                        <div class="panel-body">
+                            {% if role_slug == 'applicant' and tab.title == 'Track Application' %}
+                                {% if applicant_application %}
+                                    <article class="module-card">
+                                        <h4>Current Application</h4>
+                                        <p><strong>Status:</strong> {{ applicant_application.status }}</p>
+                                        <p><strong>Full name:</strong> {{ applicant_application.full_name }}</p>
+                                        <p><strong>Student number:</strong> {{ applicant_application.student_number }}</p>
+                                        <p><strong>Target department:</strong> {{ applicant_application.target_department }}</p>
+                                        <p><strong>Documents attached:</strong> {{ applicant_application.documents|length }}</p>
+                                    </article>
+                                {% else %}
+                                    <p>No application has been created yet. Use the submission section below to start one.</p>
+                                {% endif %}
+                            {% elif role_slug == 'applicant' and tab.title == 'Submit Documents' %}
+                                {% if not tab.period_open %}
+                                    <p>Submission period is currently closed.</p>
+                                {% elif applicant_application %}
+                                    <article class="module-card">
+                                        <h4>You already have an application</h4>
+                                        <p>This workspace is read-only for now. Editing and resubmitting will come in a later phase.</p>
+                                        <p><strong>Status:</strong> {{ applicant_application.status }}</p>
+                                    </article>
+                                {% else %}
+                                    <form method="POST" action="{{ url_for('applicant_api.create_application') }}" enctype="multipart/form-data" class="form-grid">
+                                        <label>
+                                            Full Name
+                                            <input type="text" name="full_name" required>
+                                        </label>
+                                        <label>
+                                            Student Number
+                                            <input type="text" name="student_number" required>
+                                        </label>
+                                        <label>
+                                            Source University
+                                            <input type="text" name="source_university" required>
+                                        </label>
+                                        <label>
+                                            Target Department
+                                            <input type="text" name="target_department" required>
+                                        </label>
+                                        <label>
+                                            Current GPA
+                                            <input type="text" name="current_gpa" required>
+                                        </label>
+
+                                        <div class="document-grid">
+                                            {% for slot in [1, 2, 3, 4] %}
+                                                <label>
+                                                    Document #{{ slot }} (PDF, optional)
+                                                    <input type="file" name="document_{{ slot }}" accept="application/pdf,.pdf">
+                                                </label>
+                                            {% endfor %}
+                                        </div>
+
+                                        <button class="soft-btn compact" type="submit">Create Application</button>
+                                    </form>
+                                {% endif %}
+                            {% elif role_slug == 'oidb' and tab.title == 'Check Documents' %}
+                                {% if oidb_applications %}
+                                    <div class="accordion-list">
+                                        {% for application in oidb_applications %}
+                                            <details class="application-row">
+                                                <summary>
+                                                    <span>Application #{{ application.id }}</span>
+                                                    <span>{{ application.applicant.email if application.applicant else 'Unknown applicant' }}</span>
+                                                    <span>Status: {{ application.status }}</span>
+                                                </summary>
+                                                <div class="application-content">
+                                                    <p><strong>Full name:</strong> {{ application.full_name }}</p>
+                                                    <p><strong>Student number:</strong> {{ application.student_number }}</p>
+                                                    <p><strong>Target department:</strong> {{ application.target_department }}</p>
+                                                    <p><strong>Current GPA:</strong> {{ application.current_gpa }}</p>
+
+                                                    <h4>Documents</h4>
+                                                    {% if application.documents %}
+                                                        <ul>
+                                                            {% for document in application.documents %}
+                                                                <li>Document #{{ document.document_slot }} - {{ document.original_name }}</li>
+                                                            {% endfor %}
+                                                        </ul>
+                                                    {% else %}
+                                                        <p>No documents attached.</p>
+                                                    {% endif %}
+                                                </div>
+                                            </details>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p>No submitted applications yet.</p>
+                                {% endif %}
+                            {% else %}
+                                <p>Role module preview for this tab will be expanded in the next phase.</p>
+                            {% endif %}
+                        </div>
+                    </section>
+                {% endfor %}
             </div>
         </div>
     </section>
+
+    <script>
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const jumpButtons = document.querySelectorAll('.tab-jump');
+        const panels = document.querySelectorAll('.workspace-panel');
+
+        const activatePanel = (targetId) => {
+            panels.forEach((panel) => {
+                panel.classList.toggle('active', panel.id === targetId);
+            });
+
+            tabButtons.forEach((button) => {
+                const isActive = button.dataset.target === targetId;
+                button.classList.toggle('active', isActive);
+                if (button.classList.contains('tab-button')) {
+                    button.setAttribute('aria-pressed', String(isActive));
+                }
+            });
+        };
+
+        tabButtons.forEach((button) => {
+            button.addEventListener('click', () => activatePanel(button.dataset.target));
+        });
+
+        jumpButtons.forEach((button) => {
+            button.addEventListener('click', () => activatePanel(button.dataset.target));
+        });
+    </script>
 
     <style>
         .dashboard-title-row {
@@ -64,38 +205,63 @@
 
         .tab-strip {
             display: flex;
-            gap: 6px;
-            border-bottom: 1px solid var(--line);
-            padding-bottom: 0;
+            gap: 10px;
+            flex-wrap: wrap;
             margin: 14px 0 16px;
-            overflow-x: auto;
         }
 
-        .tab {
+        .tab-button {
             white-space: nowrap;
-            padding: 8px 12px;
-            border: 1px solid #bdc8d8;
-            border-bottom: 0;
-            border-radius: 11px 11px 0 0;
-            background: linear-gradient(#eaf0fa, #d7deea);
+            padding: 10px 14px;
+            border: 1px solid #b8c4d4;
+            border-radius: 999px;
+            background: linear-gradient(#f4f7fc, #dce4f0);
             color: #2f3f55;
             font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset;
+            transition: transform 120ms ease, background 120ms ease, box-shadow 120ms ease;
         }
 
-        .tab.active {
-            background: #ffffff;
+        .tab-button:hover,
+        .tab-button:focus-visible,
+        .tab-button.active {
+            background: linear-gradient(#ffffff, #e8eef8);
             color: #101a28;
-            position: relative;
-            top: 1px;
-            font-weight: 600;
+            transform: translateY(-1px);
+        }
+
+        .tab-button:focus-visible,
+        .tab-jump:focus-visible {
+            outline: 2px solid #294d7a;
+            outline-offset: 2px;
         }
 
         .workspace-area {
             border: 1px solid #c4ccda;
-            border-radius: 0 12px 12px 12px;
+            border-radius: 12px;
             background: #ffffff;
             padding: 14px;
         }
+
+        .workspace-panel {
+            display: none;
+        }
+
+        .workspace-panel.active {
+            display: block;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .panel-header h3 { margin-bottom: 4px; }
 
         .cards-grid {
             display: grid;
@@ -111,5 +277,76 @@
         }
 
         .module-card h4 { margin-bottom: 6px; }
+
+        .soft-btn.compact {
+            padding: 8px 12px;
+            font-size: 13px;
+        }
+
+        .panel-body {
+            display: grid;
+            gap: 12px;
+        }
+
+        .panel-body p { margin-bottom: 0; }
+
+        .form-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .form-grid label {
+            display: grid;
+            gap: 6px;
+            font-weight: 600;
+            color: #1d2e45;
+        }
+
+        .form-grid input {
+            border: 1px solid #c5cfde;
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-size: 14px;
+        }
+
+        .document-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .accordion-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .application-row {
+            border: 1px solid #cfd7e5;
+            border-radius: 10px;
+            background: #f8faff;
+            padding: 8px 10px;
+        }
+
+        .application-row summary {
+            cursor: pointer;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(100px, 1fr));
+            gap: 8px;
+            font-weight: 600;
+            color: #1f3148;
+        }
+
+        .application-content {
+            border-top: 1px solid #d9e0ec;
+            margin-top: 10px;
+            padding-top: 10px;
+        }
+
+        @media (max-width: 720px) {
+            .application-row summary {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 {% endblock %}

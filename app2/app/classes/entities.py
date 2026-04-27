@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import List
 
 
 @dataclass(slots=True)
@@ -15,6 +16,7 @@ class Application:
     status: str
     student_id: int
     target_id: int
+    documents: List["Document"]
 
 
 @dataclass(slots=True)
@@ -22,7 +24,7 @@ class Document:
     """Document metadata and status."""
 
     document_id: int
-    applicant_id: int
+    application_id: int
     filename: str
     status: str
 

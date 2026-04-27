@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Submit Application - Uni System{% endblock %}
+
+{% block content %}
+    <section class="window-shell">
+        <div class="window-body">
+            <div class="dashboard-title-row">
+                <h1>Applicant Submission</h1>
+                <a class="logout-inline" href="{{ url_for('dashboard.index') }}">Back to Dashboard</a>
+            </div>
+
+            {% if not submission_open %}
+                <div class="info-box warning">
+                    <p>Application submission period is currently closed.</p>
+                </div>
+            {% elif application %}
+                <div class="info-box success">
+                    <p>You already have an application.</p>
+                </div>
+
+                <article class="module-card">
+                    <h3>Application Details (Read Only)</h3>
+                    <p><strong>Full name:</strong> {{ application.full_name }}</p>
+                    <p><strong>Student number:</strong> {{ application.student_number }}</p>
+                    <p><strong>Source university:</strong> {{ application.source_university }}</p>
+                    <p><strong>Target department:</strong> {{ application.target_department }}</p>
+                    <p><strong>Current GPA:</strong> {{ application.current_gpa }}</p>
+                    <p><strong>Status:</strong> {{ application.status }}</p>
+                    <p><strong>Created:</strong> {{ application.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+
+                    <h4>Uploaded Documents</h4>
+                    {% if application.documents %}
+                        <ul>
+                            {% for document in application.documents %}
+                                <li>Document #{{ document.document_slot }} - {{ document.original_name }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p>No documents uploaded yet.</p>
+                    {% endif %}
+                </article>
+            {% else %}
+                <p class="subline">All text fields are required. Documents are optional for this phase and must be PDF when provided.</p>
+
+                <form method="POST" action="{{ url_for('applicant_api.create_application') }}" enctype="multipart/form-data" class="form-grid">
+                    <label>
+                        Full Name
+                        <input type="text" name="full_name" required>
+                    </label>
+                    <label>
+                        Student Number
+                        <input type="text" name="student_number" required>
+                    </label>
+                    <label>
+                        Source University
+                        <input type="text" name="source_university" required>
+                    </label>
+                    <label>
+                        Target Department
+                        <input type="text" name="target_department" required>
+                    </label>
+                    <label>
+                        Current GPA
+                        <input type="text" name="current_gpa" required>
+                    </label>
+
+                    <div class="document-grid">
+                        {% for slot in document_slots %}
+                            <label>
+                                Document #{{ slot }} (PDF, optional)
+                                <input type="file" name="document_{{ slot }}" accept="application/pdf,.pdf">
+                            </label>
+                        {% endfor %}
+                    </div>
+
+                    <button class="soft-btn" type="submit">Create Application</button>
+                </form>
+            {% endif %}
+        </div>
+    </section>
+
+    <style>
+        .dashboard-title-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .dashboard-title-row h1 { margin-bottom: 0; }
+
+        .logout-inline {
+            text-decoration: none;
+            color: #22364f;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .form-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .form-grid label {
+            display: grid;
+            gap: 6px;
+            font-weight: 600;
+            color: #1d2e45;
+        }
+
+        .form-grid input {
+            border: 1px solid #c5cfde;
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-size: 14px;
+        }
+
+        .document-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .module-card {
+            border: 1px solid #d3d9e3;
+            border-radius: 10px;
+            background: #f8faff;
+            padding: 12px;
+        }
+
+        .info-box {
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .info-box.warning {
+            background: #fff4db;
+            border: 1px solid #e8cc8d;
+            color: #6d4d09;
+        }
+
+        .info-box.success {
+            background: #e8f6ea;
+            border: 1px solid #9dd5a7;
+            color: #1d5a2a;
+        }
+    </style>
+{% endblock %}

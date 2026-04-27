@@ -1,8 +1,9 @@
 # Domain Models & Business Logic Classes
 
-## 1. Abstract Users
-* **User (Abstract Class):** * Attributes: `UserID`, `Email`, `PasswordHash`, `Role`.
-    * Methods: `login()`, `logout()`, `getID()`.
+## 1. Users
+* **User:** SQLAlchemy authentication model.
+    * Attributes: `id`, `email`, `role`, `password_hash`.
+    * Relationship: one optional `Application`.
 
 ## 2. Authentication
 * **AuthClass:**
@@ -17,8 +18,14 @@
 
 ## 4. Core Entities
 * **Application:**
-    * Attributes: `ApplicationID`, `SubmissionDate`, `Status`, `StudentID`, `TargetID`.
-* **Document:** Class holding file metadata and status; owned by Applicant.
+    * SQLAlchemy model for applicant submissions.
+    * Attributes: `id`, `applicant_id`, `full_name`, `student_number`, `source_university`, `target_department`, `current_gpa`, `status`, `created_at`.
+    * Relationship: one `User`, many `ApplicationDocument` rows.
+* **ApplicationDocument:**
+    * SQLAlchemy model for uploaded submission files.
+    * Attributes: `id`, `application_id`, `document_slot`, `original_name`, `stored_name`, `file_path`, `created_at`.
+    * Supports document slots `1..4`.
+* **Document:** legacy business-layer concept now represented by `ApplicationDocument` in the database layer.
 * **IntibakTable:** Represents course equivalency matrices.
 
 *Rule: Use abstract interfaces for common methods across these classes to reduce redundancy.*
@@ -32,4 +39,4 @@ To maintain the DRY principle, use Abstract Base Classes (`abc.ABC`) for shared 
     * Methods: `upload()`, `validate()`, `retrieve()`
     * Implemented by: `Applicant`, `Oidb`
 
-*Note: You are authorized to expand these interfaces or add internal helper methods to the core classes to keep the implementation clean and modular.*
+*Note: You are authorized to expand these interfaces or add internal helper methods to the core classes to keep the implementation clean and modular. In the current code, `Application` and `ApplicationDocument` are the primary persisted entities for submission handling.*

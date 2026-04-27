@@ -8,6 +8,10 @@ ROLE_DEFINITIONS = [
     {"name": "YDYO", "slug": "ydyo"},
 ]
 
+APPLICATION_SUBMISSION_PERIOD_OPEN = True
+APPLICATION_REQUIRED_DOCUMENT_SLOTS = [1, 2, 3, 4]
+APPLICATION_UPLOAD_SUBDIR = "uploads/applications"
+
 PHASE1_TABS = {
     "applicant": [
         {
@@ -20,7 +24,7 @@ PHASE1_TABS = {
             "title": "Submit Documents",
             "description": "Upload and re-upload required files.",
             "endpoint": "applicant_api.submit_documents",
-            "period_open": False,
+            "period_open": APPLICATION_SUBMISSION_PERIOD_OPEN,
         },
     ],
     "oidb": [

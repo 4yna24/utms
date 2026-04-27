@@ -1,8 +1,10 @@
+from pathlib import Path
+
 from flask import Flask, redirect, render_template, url_for
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text
 
-from .config import ROLE_DEFINITIONS
+from .config import APPLICATION_UPLOAD_SUBDIR, ROLE_DEFINITIONS
 
 db = SQLAlchemy()
 
@@ -30,6 +32,7 @@ def create_app():
     app.config["SECRET_KEY"] = "dev-key-123"
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///project.db"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    app.config["APPLICATION_UPLOAD_FOLDER"] = str(Path(app.instance_path) / APPLICATION_UPLOAD_SUBDIR)
 
     db.init_app(app)
     from .database import init_database_interfaces
@@ -51,6 +54,7 @@ def create_app():
         return redirect(url_for("auth.staff_login", role=role_slug))
 
     with app.app_context():
+        Path(app.config["APPLICATION_UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
         db.create_all()
         _ensure_user_role_column()
 
