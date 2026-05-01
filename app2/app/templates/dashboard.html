@@ -156,31 +156,8 @@
         </div>
     </section>
 
-    <script>
-        const tabButtons = document.querySelectorAll('.tab-button');
-        const jumpButtons = document.querySelectorAll('.tab-jump');
-        const panels = document.querySelectorAll('.workspace-panel');
+{% endblock %}
 
-        const activatePanel = (targetId) => {
-            panels.forEach((panel) => {
-                panel.classList.toggle('active', panel.id === targetId);
-            });
-
-            tabButtons.forEach((button) => {
-                const isActive = button.dataset.target === targetId;
-                button.classList.toggle('active', isActive);
-                if (button.classList.contains('tab-button')) {
-                    button.setAttribute('aria-pressed', String(isActive));
-                }
-            });
-        };
-
-        tabButtons.forEach((button) => {
-            button.addEventListener('click', () => activatePanel(button.dataset.target));
-        });
-
-        jumpButtons.forEach((button) => {
-            button.addEventListener('click', () => activatePanel(button.dataset.target));
-        });
-    </script>
+{% block extra_js %}
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}

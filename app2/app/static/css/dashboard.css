@@ -170,6 +170,25 @@
     padding-top: 10px;
 }
 
+.info-box {
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    font-weight: 600;
+}
+
+.info-box.warning {
+    background: #fff4db;
+    border: 1px solid #e8cc8d;
+    color: #6d4d09;
+}
+
+.info-box.success {
+    background: #e8f6ea;
+    border: 1px solid #9dd5a7;
+    color: #1d5a2a;
+}
+
 @media (max-width: 720px) {
     .application-row summary {
         grid-template-columns: 1fr;
