@@ -2,6 +2,10 @@
 
 {% block title %}{{ page_title or 'Login' }} - Uni System{% endblock %}
 
+{% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+{% endblock %}
+
 {% block content %}
     <section class="window-shell auth-shell">
         <div class="window-body">

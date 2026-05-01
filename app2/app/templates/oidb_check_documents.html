@@ -2,6 +2,10 @@
 
 {% block title %}OIDB - Check Documents{% endblock %}
 
+{% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
+
 {% block content %}
     <section class="window-shell">
         <div class="window-body">
