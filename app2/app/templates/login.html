@@ -10,18 +10,18 @@
 
             <form method="POST">
                 <div>
-                    <label>Email</label><br>
+                    <label>Email</label>
                     <input type="email" name="email" required>
                 </div>
-                <br>
+
                 <div>
-                    <label>Password</label><br>
+                    <label>Password</label>
                     <input type="password" name="password" required>
                 </div>
-                <br>
+
                 {% if show_role_selector %}
                     <div>
-                        <label>Role</label><br>
+                        <label>Role</label>
                         <select name="role" required>
                             <option value="">Select role</option>
                             {% for role in roles %}
@@ -29,7 +29,6 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <br>
                 {% else %}
                     <input type="hidden" name="role" value="{{ role_value }}">
                 {% endif %}

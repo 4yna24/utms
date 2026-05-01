@@ -8,20 +8,26 @@
             <h1>{{ form_title or 'Create Account' }}</h1>
             <p class="subline">Create your account in the dedicated auth workspace.</p>
             <form method="POST">
-                <label>Email</label><br>
-                <input type="email" name="email" required><br><br>
+                <div>
+                    <label>Email</label>
+                    <input type="email" name="email" required>
+                </div>
 
-                <label>Password</label><br>
-                <input type="password" name="password" required><br><br>
+                <div>
+                    <label>Password</label>
+                    <input type="password" name="password" required>
+                </div>
 
                 {% if show_role_selector %}
-                    <label>Role</label><br>
-                    <select name="role" required>
-                        <option value="">Select role</option>
-                        {% for role in roles %}
-                            <option value="{{ role.slug }}" {% if role_value == role.slug %}selected{% endif %}>{{ role.name }}</option>
-                        {% endfor %}
-                    </select><br><br>
+                    <div>
+                        <label>Role</label>
+                        <select name="role" required>
+                            <option value="">Select role</option>
+                            {% for role in roles %}
+                                <option value="{{ role.slug }}" {% if role_value == role.slug %}selected{% endif %}>{{ role.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                 {% else %}
                     <input type="hidden" name="role" value="{{ role_value }}">
                 {% endif %}
