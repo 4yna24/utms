@@ -3,7 +3,7 @@
 ## 1. Tech Stack
 * **Backend:** Flask (Python)
 * **Database:** SQLAlchemy ORM (Currently SQLite, but the data model should remain migration-friendly).
-* **Methodology:** Agile. The project is now in a workspace-based Phase 2 submission stage.
+* **Methodology:** Agile.
 
 ## 2. Directory Structure Rules
 Code must be strictly modular. Do not put everything in `app.py`.
