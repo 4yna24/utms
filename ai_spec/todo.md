@@ -1,3 +1,5 @@
+# These are reference notes only. Do not treat them as active tasks unless the user explicitly asks to work on them.
+
 # Applicant
 
 1. Submit application part should be correct. What should applicant submit in application? It is not properly defined.
