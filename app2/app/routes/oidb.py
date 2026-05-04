@@ -5,6 +5,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, render_template
 from sqlalchemy.orm import selectinload
 
+from .. import db
 from ..models import Application
 from .common import role_required
 
@@ -29,3 +30,14 @@ def check_documents():
 @role_required("oidb")
 def create_waitlist_table():
     return jsonify({"tab": "Create Waitlist Table", "status": "Phase 1 shell"})
+
+
+@oidb_api_bp.route("/forward-to-ydyo/<int:application_id>", methods=["POST"])
+@role_required("oidb")
+def forward_to_ydyo(application_id):
+    application = Application.query.get(application_id)
+    if not application or application.status != "submitted":
+        return jsonify({"error": "Invalid application"}), 400
+    application.status = "forwarded_to_ydyo"
+    db.session.commit()
+    return jsonify({"message": "Application forwarded to YDYO"})

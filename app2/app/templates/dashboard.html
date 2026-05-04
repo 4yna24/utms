@@ -143,6 +143,14 @@
                                                     {% else %}
                                                         <p>No documents attached.</p>
                                                     {% endif %}
+
+                                                    {% if application.status == 'submitted' %}
+                                                    <div class="action-buttons">
+                                                        <form method="POST" action="{{ url_for('oidb_api.forward_to_ydyo', application_id=application.id) }}" style="display: inline;">
+                                                            <button type="submit" class="soft-btn">Forward to YDYO</button>
+                                                        </form>
+                                                    </div>
+                                                    {% endif %}
                                                 </div>
                                             </details>
                                         {% endfor %}

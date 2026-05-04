@@ -19,7 +19,12 @@ applicant_api_bp = Blueprint("applicant_api", __name__, url_prefix="/api/applica
 @applicant_api_bp.route("/track-application", methods=["GET"])
 @role_required("applicant")
 def track_application():
-    return jsonify({"tab": "Track Application", "status": "Phase 1 shell"})
+    applicant_id = session.get("user_id")
+    application = Application.query.filter_by(applicant_id=applicant_id).first()
+    if application:
+        return jsonify({"tab": "Track Application", "status": application.status})
+    else:
+        return jsonify({"tab": "Track Application", "status": "No application found"})
 
 
 @applicant_api_bp.route("/submit-documents", methods=["GET"])
