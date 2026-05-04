@@ -27,6 +27,29 @@ def _ensure_user_role_column():
                 text('ALTER TABLE "user" ADD COLUMN role VARCHAR(32) NOT NULL DEFAULT "applicant"')
             )
 
+
+def _ensure_application_new_columns():
+    with db.engine.begin() as conn:
+        table_exists = conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='application'")
+        ).fetchone()
+        if not table_exists:
+            return
+
+        columns = conn.execute(text('PRAGMA table_info("application")')).fetchall()
+        column_names = {col[1] for col in columns}
+
+        additions = {
+            "id_number": 'VARCHAR(64) NOT NULL DEFAULT ""',
+            "target_program": 'VARCHAR(120) NOT NULL DEFAULT ""',
+            "target_semester": 'VARCHAR(32) NOT NULL DEFAULT ""',
+            "is_currently_enrolled": "BOOLEAN NOT NULL DEFAULT 0",
+            "oidb_notes": "TEXT",
+        }
+        for col_name, col_def in additions.items():
+            if col_name not in column_names:
+                conn.execute(text(f'ALTER TABLE "application" ADD COLUMN {col_name} {col_def}'))
+
 def create_app():
     app = Flask(__name__)
     app.config["SECRET_KEY"] = "dev-key-123"
@@ -57,5 +80,6 @@ def create_app():
         Path(app.config["APPLICATION_UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
         db.create_all()
         _ensure_user_role_column()
+        _ensure_application_new_columns()
 
     return app

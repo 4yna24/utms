@@ -9,20 +9,75 @@ ROLE_DEFINITIONS = [
 ]
 
 APPLICATION_SUBMISSION_PERIOD_OPEN = True
-APPLICATION_REQUIRED_DOCUMENT_SLOTS = [1, 2, 3, 4]
+APPLICATION_CANCELLATION_ALLOWED = True
+APPLICATION_RESUBMISSION_ALLOWED = True
 APPLICATION_UPLOAD_SUBDIR = "uploads/applications"
+
+APPLICATION_DOCUMENT_SLOTS = [
+    {"slot": 1, "label": "Student Certificate"},
+    {"slot": 2, "label": "Transcript"},
+    {"slot": 3, "label": "YKS Score Report"},
+]
+# Legacy alias
+APPLICATION_REQUIRED_DOCUMENT_SLOTS = [s["slot"] for s in APPLICATION_DOCUMENT_SLOTS]
+
+AVAILABLE_PROGRAMS = [
+    "Computer Engineering",
+    "Electrical and Electronics Engineering",
+    "Mechanical Engineering",
+    "Civil Engineering",
+    "Industrial Engineering",
+    "Software Engineering",
+    "Architecture",
+    "Business Administration",
+    "Economics",
+    "International Relations",
+    "Psychology",
+    "Law",
+    "Medicine",
+    "Nursing",
+    "Mathematics",
+    "Physics",
+    "Chemistry",
+    "Biology",
+]
+
+AVAILABLE_SEMESTERS = [
+    "2024–2025 / Fall",
+    "2024–2025 / Spring",
+    "2025–2026 / Fall",
+    "2025–2026 / Spring",
+]
+
+# Ordered steps for the applicant status tracker
+APPLICATION_TRACKER_STEPS = [
+    "Application Submitted",
+    "Initial Verification",
+    "Forwarding to Dean's Office",
+    "Under Departmental Review",
+    "Intibak Process",
+    "Result Announcement",
+]
+
+# Maps application.status → tracker step index (0-based)
+APPLICATION_STATUS_STEP = {
+    "submitted": 0,
+    "returned": 0,       # error at step 0
+    "forwarded_to_ydyo": 2,
+    "cancelled": -1,
+}
 
 PHASE1_TABS = {
     "applicant": [
         {
             "title": "Track Application",
-            "description": "View transfer application status timeline.",
+            "description": "View your transfer application status and timeline.",
             "endpoint": "applicant_api.track_application",
             "period_open": True,
         },
         {
-            "title": "Submit Documents",
-            "description": "Upload and re-upload required files.",
+            "title": "Submit Application",
+            "description": "Submit required documents and personal information.",
             "endpoint": "applicant_api.submit_documents",
             "period_open": APPLICATION_SUBMISSION_PERIOD_OPEN,
         },
@@ -30,7 +85,7 @@ PHASE1_TABS = {
     "oidb": [
         {
             "title": "Check Documents",
-            "description": "Placeholder queue for document checks.",
+            "description": "Review submitted applications and verify documents.",
             "endpoint": "oidb_api.check_documents",
         },
         {
@@ -42,31 +97,31 @@ PHASE1_TABS = {
     "dean": [
         {
             "title": "Check Applicants",
-            "description": "Placeholder controls for manual and auto forwarding.",
+            "description": "Review and forward applications.",
             "endpoint": "dean_api.check_applicants",
         },
     ],
     "ygk": [
         {
             "title": "Check Applicants",
-            "description": "Placeholder list of applicants for evaluation.",
+            "description": "Applicant list for evaluation.",
             "endpoint": "ygk_api.check_applicants",
         },
         {
             "title": "Intibak Table",
-            "description": "Placeholder interface to view and edit intibak rows.",
+            "description": "View and edit intibak rows.",
             "endpoint": "ygk_api.intibak_table",
         },
     ],
     "ydyo": [
         {
             "title": "Retrieve Applicants",
-            "description": "Placeholder retrieval queue.",
+            "description": "Retrieval queue.",
             "endpoint": "ydyo_api.retrieve_applicants",
         },
         {
             "title": "Set Prep School Status",
-            "description": "Placeholder status assignment panel.",
+            "description": "Status assignment panel.",
             "endpoint": "ydyo_api.set_prep_school_status",
         },
     ],

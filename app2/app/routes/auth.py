@@ -85,7 +85,7 @@ def applicant_register():
             flash("Email already exists for applicant role.")
             return redirect(url_for("auth.applicant_register"))
 
-        flash("Registration successful. Please login.")
+        flash("Registration successful. Please login.", "success")
         return redirect(url_for("auth.applicant_login"))
 
     return _render_register(
@@ -162,7 +162,7 @@ def staff_register():
             flash("Email already exists for selected role.")
             return redirect(url_for("auth.staff_register"))
 
-        flash("Registration successful. Please login.")
+        flash("Registration successful. Please login.", "success")
         return redirect(url_for("auth.staff_login", role=role))
 
     return _render_register(

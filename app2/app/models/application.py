@@ -14,12 +14,28 @@ class Application(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     applicant_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+
+    # Personal info
     full_name = db.Column(db.String(120), nullable=False)
-    student_number = db.Column(db.String(32), nullable=False)
-    source_university = db.Column(db.String(120), nullable=False)
-    target_department = db.Column(db.String(120), nullable=False)
+    id_number = db.Column(db.String(64), nullable=False, default="")
+    # Legacy — kept for backward compat; mirrors id_number on new submissions
+    student_number = db.Column(db.String(32), nullable=False, default="")
+
+    # Current institution (populated when is_currently_enrolled is True)
+    source_university = db.Column(db.String(120), nullable=False, default="")
+    is_currently_enrolled = db.Column(db.Boolean, nullable=False, default=False)
+
+    # Target program
+    target_program = db.Column(db.String(120), nullable=False, default="")
+    # Legacy — kept for backward compat; mirrors target_program on new submissions
+    target_department = db.Column(db.String(120), nullable=False, default="")
+    target_semester = db.Column(db.String(32), nullable=False, default="")
+
     current_gpa = db.Column(db.String(16), nullable=False)
+
+    # Workflow
     status = db.Column(db.String(32), nullable=False, default="submitted")
+    oidb_notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     applicant = db.relationship("User", back_populates="application")

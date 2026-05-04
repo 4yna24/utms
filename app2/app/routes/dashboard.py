@@ -5,7 +5,17 @@ from __future__ import annotations
 from flask import Blueprint, render_template, session
 from sqlalchemy.orm import selectinload
 
-from ..config import PHASE1_TABS, ROLE_DEFINITIONS
+from ..config import (
+    APPLICATION_CANCELLATION_ALLOWED,
+    APPLICATION_DOCUMENT_SLOTS,
+    APPLICATION_RESUBMISSION_ALLOWED,
+    APPLICATION_STATUS_STEP,
+    APPLICATION_TRACKER_STEPS,
+    AVAILABLE_PROGRAMS,
+    AVAILABLE_SEMESTERS,
+    PHASE1_TABS,
+    ROLE_DEFINITIONS,
+)
 from ..models import Application
 
 from .common import login_required
@@ -45,4 +55,11 @@ def index():
         tabs=PHASE1_TABS.get(role_slug, []),
         applicant_application=applicant_application,
         oidb_applications=oidb_applications,
+        available_programs=AVAILABLE_PROGRAMS,
+        available_semesters=AVAILABLE_SEMESTERS,
+        document_slots=APPLICATION_DOCUMENT_SLOTS,
+        cancellation_allowed=APPLICATION_CANCELLATION_ALLOWED,
+        resubmission_allowed=APPLICATION_RESUBMISSION_ALLOWED,
+        tracker_steps=APPLICATION_TRACKER_STEPS,
+        status_step=APPLICATION_STATUS_STEP,
     )
