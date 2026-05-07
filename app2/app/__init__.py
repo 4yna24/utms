@@ -45,6 +45,8 @@ def _ensure_application_new_columns():
             "target_semester": 'VARCHAR(32) NOT NULL DEFAULT ""',
             "is_currently_enrolled": "BOOLEAN NOT NULL DEFAULT 0",
             "oidb_notes": "TEXT",
+            "prep_school_status": "VARCHAR(32)",
+            "forwarded_faculty": 'VARCHAR(120)',
         }
         for col_name, col_def in additions.items():
             if col_name not in column_names:

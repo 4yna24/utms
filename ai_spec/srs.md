@@ -19,11 +19,11 @@ This file tracks implementation status and UI placement notes for each use case.
 
 ## Dean
 
-9. **UC-7** — Receive applications *(Dean)* — **TODO**
-10. **UC-8** — Forward application *(Dean)* — **TODO**
+9. **UC-7** — Receive applications *(Dean)* — **DONE**
+10. **UC-8** — Forward application to departmental YGK *(Dean)* — **DONE**
 11. **UC-24** — Login *(Dean)* — **DONE**
 
-**UI note:** Use cases **UC-7** and **UC-8** share one page. Receiving/seeing applications is the **Dashboard** tab, and it includes buttons to forward to the respective faculty.
+**UI note:** Use cases **UC-7** and **UC-8** share one page. Dean expands an application, selects the target faculty from a dropdown, and clicks **Forward to YGK** — this records `forwarded_faculty` and transitions status to `forwarded_to_ygk`. The **Forward All to YGK** button is a placeholder (no logic yet). After forwarding, the row shows the selected faculty name in place of the action controls.
 
 ## YGK
 
@@ -42,3 +42,19 @@ This file tracks implementation status and UI placement notes for each use case.
 - A screen with applications.
 - Top-right button to check validity for **all documents**.
 - OIDB staff can expand an application block and manually check each field, find errors, mark an application as bad, send it back, and notify the applicant.
+
+## YDYO
+
+18. **UC-28** — Login *(YDYO)* — **DONE**
+19. **UC-29** — Set prep school status *(YDYO)* — **DONE**
+20. **UC-30** — Auto-forward all to Dean *(YDYO)* — **TODO (placeholder — button exists, logic not implemented)**
+
+**UI note:** Use cases **UC-29** and **UC-30** share the **Set Prep School Status** tab:
+
+- Shows only applications with status `forwarded_to_ydyo`.
+- YDYO staff expands an application and reviews the **English Proficiency Certificate** (document slot 4).
+- Staff marks each applicant with one of two decisions:
+  - **English Eligible** — applicant's proficiency certificate is accepted; no internal test required.
+  - **Needs Internal Test** — applicant must sit the university's internal English examination.
+- Marking a decision sets `prep_school_status` on the application (`"eligible"` or `"needs_test"`) and immediately forwards the application to Dean (post-condition).
+- The **Forward All to Dean** button is a placeholder; bulk logic is not yet implemented.

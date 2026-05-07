@@ -181,25 +181,21 @@ class DeanOffice(User, IReviewer):
         db.session.commit()
         return True
 
-    def forward_to_ygk(self, application_id: int) -> tuple[bool, str]:
+    def forward_to_ygk(self, application_id: int, faculty: str) -> tuple[bool, str]:
         from .. import db
         from ..models import Application
+        if not faculty:
+            return False, "A faculty must be selected before forwarding."
         app = Application.query.get(application_id)
         if not app or app.status != "forwarded_to_dean":
             return False, "Cannot forward this application."
+        app.forwarded_faculty = faculty
         app.status = "forwarded_to_ygk"
         db.session.commit()
-        return True, f"Application #{application_id} forwarded to YGK."
+        return True, f"Application #{application_id} forwarded to YGK ({faculty})."
 
-    def forward_all_to_ygk(self) -> int:
-        from .. import db
-        from ..models import Application
-        apps = Application.query.filter_by(status="forwarded_to_dean").all()
-        count = len(apps)
-        for a in apps:
-            a.status = "forwarded_to_ygk"
-        db.session.commit()
-        return count
+    def forward_all_to_ygk(self) -> tuple[bool, str]:
+        return False, "Auto-forward to YGK is not yet implemented."
 
 
 class YGK(User, IReviewer):
@@ -295,13 +291,45 @@ class Ydyo(User, IReviewer):
     """YDYO role."""
 
     def get_pending_applicants(self) -> list[dict[str, Any]]:
-        return []
+        return self.get_applications()
 
     def update_applicant_status(self, applicant_id: int, status: str) -> bool:
         return applicant_id > 0 and bool(status)
 
-    def retrieve_applications(self) -> list[dict[str, Any]]:
-        return []
+    def get_applications(self) -> list:
+        from ..models import Application
+        from sqlalchemy.orm import selectinload
+        return (
+            Application.query
+            .options(selectinload(Application.documents), selectinload(Application.applicant))
+            .filter_by(status="forwarded_to_ydyo")
+            .order_by(Application.created_at.desc())
+            .all()
+        )
+
+    def get_document(self, doc_id: int):
+        from ..models import ApplicationDocument
+        return ApplicationDocument.query.get(doc_id)
+
+    _VALID_PREP_STATUSES = {"eligible", "needs_test"}
+
+    def mark_and_forward(self, application_id: int, prep_status: str) -> tuple[bool, str]:
+        """Set the applicant's prep school status and forward to Dean."""
+        if prep_status not in self._VALID_PREP_STATUSES:
+            return False, "Invalid prep school status."
+        from .. import db
+        from ..models import Application
+        app = Application.query.get(application_id)
+        if not app or app.status != "forwarded_to_ydyo":
+            return False, "Cannot process this application."
+        app.prep_school_status = prep_status
+        app.status = "forwarded_to_dean"
+        db.session.commit()
+        label = "Eligible" if prep_status == "eligible" else "Needs Internal Test"
+        return True, f"Application #{application_id} marked as '{label}' and forwarded to Dean."
+
+    def forward_all_to_dean(self) -> tuple[bool, str]:
+        return False, "Auto-forward to Dean is not yet implemented."
 
     def set_prepschool_status(self) -> bool:
         return True

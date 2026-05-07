@@ -22,6 +22,16 @@ APPLICATION_DOCUMENT_SLOTS = [
 # Legacy alias — only required slots
 APPLICATION_REQUIRED_DOCUMENT_SLOTS = [s["slot"] for s in APPLICATION_DOCUMENT_SLOTS if not s.get("optional")]
 
+AVAILABLE_FACULTIES = [
+    "Faculty of Engineering",
+    "Faculty of Architecture",
+    "Faculty of Business Administration",
+    "Faculty of Arts and Sciences",
+    "Faculty of Law",
+    "Faculty of Medicine",
+    "Faculty of Nursing",
+]
+
 AVAILABLE_PROGRAMS = [
     "Computer Engineering",
     "Electrical and Electronics Engineering",
@@ -123,16 +133,10 @@ PHASE1_TABS = {
     ],
     "ydyo": [
         {
-            "title": "Retrieve Applicants",
-            "description": "Retrieval queue.",
-            "endpoint": "ydyo_api.retrieve_applicants",
-            "partial": None,
-        },
-        {
             "title": "Set Prep School Status",
-            "description": "Status assignment panel.",
-            "endpoint": "ydyo_api.set_prep_school_status",
-            "partial": None,
+            "description": "Review English proficiency documents and mark each applicant's prep school requirement.",
+            "endpoint": "ydyo_api.check_documents",
+            "partial": "partials/panel_ydyo_documents.html",
         },
     ],
 }

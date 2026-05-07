@@ -8,7 +8,14 @@ This file explains where things live and why, so that new code goes in the right
 
 ```
 app/
-├── classes/        ← business logic (role classes)
+├── classes/
+│   ├── users.py        ← role classes (Applicant, DeanOffice, Oidb, Ydyo, YGK)
+│   ├── auth.py         ← AuthClass (register, authenticate, validate_credentials)
+│   ├── interfaces.py   ← IReviewer, IDocumentHandler abstract bases
+│   └── entities/       ← domain dataclasses (Application, Document, IntibakTable)
+│       ├── application.py
+│       ├── intibak.py
+│       └── __init__.py
 ├── database/       ← DB interface abstraction (used by auth)
 ├── models/         ← SQLAlchemy ORM models (data shape only)
 ├── routes/         ← thin HTTP handlers (one file per role)
@@ -18,7 +25,8 @@ app/
 ├── templates/
 │   ├── partials/   ← dashboard panel fragments, one per tab
 │   └── *.html      ← standalone pages + base
-└── config.py       ← constants, PHASE1_TABS, tab→partial mapping
+├── __init__.py     ← create_app(), SQLite migration helpers
+└── config.py       ← PHASE1_TABS, reference-data constants, feature flags
 ```
 
 ---
@@ -98,14 +106,46 @@ To add filter chips to a new table: put `data-filter-table="your-table-id"` on t
 
 ---
 
+## Role Implementation Checklist
+
+| Role | Class file | Route file | Dashboard partial | `_get_role_data` branch |
+|------|-----------|-----------|-------------------|------------------------|
+| Applicant | `classes/users.py` | `routes/applicant.py` | `panel_applicant_*.html` | ✓ |
+| OIDB | `classes/users.py` | `routes/oidb.py` | `panel_oidb_documents.html` | ✓ |
+| Dean | `classes/users.py` | `routes/dean.py` | `panel_dean_applications.html` | ✓ |
+| YDYO | `classes/users.py` | `routes/ydyo.py` | `panel_ydyo_documents.html` | ✓ |
+| YGK | `classes/users.py` | `routes/ygk.py` | — (partial: None) | — |
+
+---
+
 ## Standalone Pages vs. Dashboard
 
 Routes like `/api/oidb/check-documents` and `/api/dean/check-applicants` render standalone templates (`oidb_check_documents.html`, `dean_check_applicants.html`). These exist for direct URL access but are **not** the primary UI — the dashboard is. Standalone pages have their own inline JS for sort; `dashboard.js` only runs on the dashboard.
 
 ---
 
-## Config as the Single Source of Truth for Tabs
+## Config as the Single Source of Truth
 
-`config.py` is the only place that defines what tabs exist per role, what they're called, and which partial they render. If a tab is renamed or reordered, change it here only.
+`config.py` owns three categories of constants:
 
-The `"partial": None` entries in `PHASE1_TABS` are tabs that fall back to "coming soon" text — they have no panel content yet.
+**Tab definitions** (`PHASE1_TABS`) — what tabs exist per role, their titles, endpoints, and which partial they render. Change tab names or order here only. `"partial": None` entries fall back to "coming soon" text.
+
+**Reference data** — lists that populate dropdowns in templates:
+- `AVAILABLE_PROGRAMS` — applicant target programs
+- `AVAILABLE_SEMESTERS` — available intake semesters
+- `AVAILABLE_FACULTIES` — faculty names shown in Dean's forward-to-YGK dropdown
+
+These are passed to every `render_template` call in `dashboard.py` so all partials can access them. Standalone pages (e.g. `routes/dean.py`) import and pass them explicitly.
+
+**Feature flags** — `APPLICATION_SUBMISSION_PERIOD_OPEN`, `APPLICATION_CANCELLATION_ALLOWED`, `APPLICATION_RESUBMISSION_ALLOWED`. Flip these to open/close periods without touching logic.
+
+---
+
+## Adding a New Column to Application
+
+New columns require two changes or existing databases will break on startup:
+
+1. **`models/application.py`** — add the `db.Column(...)` declaration.
+2. **`app/__init__.py` → `_ensure_application_new_columns()`** — add the column name and its SQLite type string to the `additions` dict.
+
+The helper runs `ALTER TABLE application ADD COLUMN …` for any missing column at startup, keeping existing SQLite files compatible.

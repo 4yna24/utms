@@ -6,7 +6,7 @@
             <span class="stat-chip chip-forwarded" data-filter="forwarded_to_ygk">Forwarded: {{ dean_applications|selectattr('status','eq','forwarded_to_ygk')|list|length }}</span>
         </div>
         <form method="POST" action="{{ url_for('dean_api.forward_all_to_ygk') }}" style="display:inline;">
-            <button type="submit" class="soft-btn compact" onclick="return confirm('Forward ALL pending applications to YGK?')">Forward All to YGK</button>
+            <button type="submit" class="soft-btn compact" onclick="return confirm('Auto-forward all to YGK? (not yet implemented)')">Forward All to YGK</button>
         </form>
     </div>
 
@@ -66,12 +66,18 @@
 
                             {% if app.status == 'forwarded_to_dean' %}
                             <div class="action-row">
-                                <form method="POST" action="{{ url_for('dean_api.forward_to_ygk', application_id=app.id) }}">
+                                <form method="POST" action="{{ url_for('dean_api.forward_to_ygk', application_id=app.id) }}" class="inline-form">
+                                    <select name="faculty" required>
+                                        <option value="">Select faculty…</option>
+                                        {% for faculty in available_faculties %}
+                                            <option value="{{ faculty }}">{{ faculty }}</option>
+                                        {% endfor %}
+                                    </select>
                                     <button type="submit" class="soft-btn">Forward to YGK</button>
                                 </form>
                             </div>
                             {% else %}
-                                <p class="subline" style="margin-top:10px;">No actions — status: <strong>{{ app.status|replace('_',' ') }}</strong></p>
+                                <p class="subline" style="margin-top:10px;">Forwarded to: <strong>{{ app.forwarded_faculty or 'YGK' }}</strong></p>
                             {% endif %}
                         </div>
                     </td>

@@ -11,6 +11,7 @@ from ..config import (
     APPLICATION_RESUBMISSION_ALLOWED,
     APPLICATION_STATUS_STEP,
     APPLICATION_TRACKER_STEPS,
+    AVAILABLE_FACULTIES,
     AVAILABLE_PROGRAMS,
     AVAILABLE_SEMESTERS,
     PHASE1_TABS,
@@ -40,6 +41,10 @@ def _get_role_data(role_slug: str, user_id: int, email: str) -> dict:
         from ..classes import DeanOffice
         return {"dean_applications": DeanOffice(user_id, email, "dean").get_pending_applicants()}
 
+    if role_slug == "ydyo":
+        from ..classes.users import Ydyo
+        return {"ydyo_applications": Ydyo(user_id, email, "ydyo").get_applications()}
+
     return {}
 
 
@@ -59,6 +64,7 @@ def index():
         tabs=PHASE1_TABS.get(role_slug, []),
         available_programs=AVAILABLE_PROGRAMS,
         available_semesters=AVAILABLE_SEMESTERS,
+        available_faculties=AVAILABLE_FACULTIES,
         document_slots=APPLICATION_DOCUMENT_SLOTS,
         cancellation_allowed=APPLICATION_CANCELLATION_ALLOWED,
         resubmission_allowed=APPLICATION_RESUBMISSION_ALLOWED,

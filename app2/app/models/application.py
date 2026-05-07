@@ -35,6 +35,10 @@ class Application(db.Model):
     # Workflow
     status = db.Column(db.String(32), nullable=False, default="submitted")
     oidb_notes = db.Column(db.Text, nullable=True)
+    # Set by YDYO: "eligible" = no internal test needed, "needs_test" = must take internal English test
+    prep_school_status = db.Column(db.String(32), nullable=True)
+    # Set by Dean when forwarding to departmental YGK
+    forwarded_faculty = db.Column(db.String(120), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     applicant = db.relationship("User", back_populates="application")
