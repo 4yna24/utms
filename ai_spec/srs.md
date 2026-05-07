@@ -9,10 +9,10 @@ This file tracks implementation status and UI placement notes for each use case.
 1. **UC-1** — Register to system *(Applicant)* — **DONE**
 2. **UC-2** — Log in *(Applicant)* — **DONE**
 3. **UC-3** — Reset the password *(Applicant)* — **IGNORE**
-4. **UC-4** — Submit the documents *(Applicant)* — **TODO**
-5. **UC-5** — Track Results *(Applicant)* — **TODO**
-6. **UC-6** — Update Documents *(Applicant)* — **TODO**
-7. **UC-23** — Resubmit Documents *(Applicant)* — **TODO**
+4. **UC-4** — Submit the documents *(Applicant)* — **DONE**
+5. **UC-5** — Track Results *(Applicant)* — **DONE**
+6. **UC-6** — Update Documents *(Applicant)* — **DONE**
+7. **UC-23** — Resubmit Documents *(Applicant)* — **DONE**
 8. **UC-21** — Applicant cancels application *(Applicant)* — **TODO**
 
 **UI note:** Use cases **UC-5**, **UC-6**, **UC-23**, **UC-21** live under the **Track Results** tab. In **Track Results**, the applicant may have options to **resubmit**, **update**, or **cancel**.
@@ -32,10 +32,10 @@ This file tracks implementation status and UI placement notes for each use case.
 
 ## OIDB
 
-14. **UC-19** — Retrieve documents *(OIDB)* — **TODO**
+14. **UC-19** — Retrieve documents *(OIDB)* — **DONE**
 15. **UC-20** — Create waitlist tables *(OIDB)* — **TODO (last)**
 16. **UC-26** — Login *(OIDB)* — **DONE**
-17. **UC-27** — Check documents *(OIDB)* — **TODO**
+17. **UC-27** — Check documents *(OIDB)* — **DONE**
 
 **UI note:** Use cases **UC-19**, **UC-20**, **UC-27** share the same screen/tab:
 

@@ -14,7 +14,8 @@ Code must be strictly modular. Do not put everything in `app.py`.
 * `/app/templates/`: Workspace and role UI rendered server-side.
 
 ## 3. Database Abstraction (Critical)
-* Never execute raw SQL queries directly in route functions.
+*
+3 Never execute raw SQL queries directly in route functions.
 * All database interactions should pass through a `DatabaseInterface` abstraction where the project already uses it.
 * This interface must handle: `Connect`, `Disconnect`, `ExecuteQuery` (with parameter binding to prevent injection), and `Backup`.
 * Implement a `DatabaseControlInterface` to restrict dangerous operations and reduce redundancy.
