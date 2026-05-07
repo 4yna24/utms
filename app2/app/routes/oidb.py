@@ -1,29 +1,23 @@
-"""OIDB API shell routes."""
+"""OIDB routes — thin HTTP layer over Oidb class."""
 
 from __future__ import annotations
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, url_for
-from sqlalchemy.orm import selectinload
+from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, session, url_for
 
-from .. import db
-from ..models import Application, ApplicationDocument
+from ..classes import Oidb
 from .common import role_required
 
 oidb_api_bp = Blueprint("oidb_api", __name__, url_prefix="/api/oidb")
 
 
+def _svc() -> Oidb:
+    return Oidb(session["user_id"], session["user_email"], "oidb")
+
+
 @oidb_api_bp.route("/check-documents", methods=["GET"])
 @role_required("oidb")
 def check_documents():
-    applications = (
-        Application.query.options(
-            selectinload(Application.documents),
-            selectinload(Application.applicant),
-        )
-        .order_by(Application.created_at.desc())
-        .all()
-    )
-    return render_template("oidb_check_documents.html", applications=applications)
+    return render_template("oidb_check_documents.html", applications=_svc().get_pending_applicants())
 
 
 @oidb_api_bp.route("/create-waitlist-table", methods=["GET"])
@@ -36,24 +30,15 @@ def create_waitlist_table():
 @oidb_api_bp.route("/forward-to-ydyo/<int:application_id>", methods=["POST"])
 @role_required("oidb")
 def forward_to_ydyo(application_id):
-    application = Application.query.get(application_id)
-    if not application or application.status not in ("submitted", "returned"):
-        flash("Cannot forward this application.")
-        return redirect(url_for("oidb_api.check_documents"))
-    application.status = "forwarded_to_ydyo"
-    db.session.commit()
-    flash(f"Application #{application_id} forwarded to YDYO.", "success")
+    ok, msg = _svc().forward_to_ydyo(application_id)
+    flash(msg, "success" if ok else "error")
     return redirect(url_for("oidb_api.check_documents"))
 
 
 @oidb_api_bp.route("/forward-all-to-ydyo", methods=["POST"])
 @role_required("oidb")
 def forward_all_to_ydyo():
-    apps = Application.query.filter_by(status="submitted").all()
-    count = len(apps)
-    for app in apps:
-        app.status = "forwarded_to_ydyo"
-    db.session.commit()
+    count = _svc().forward_all_to_ydyo()
     flash(f"Forwarded {count} application(s) to YDYO.", "success")
     return redirect(url_for("oidb_api.check_documents"))
 
@@ -61,25 +46,16 @@ def forward_all_to_ydyo():
 @oidb_api_bp.route("/return-application/<int:application_id>", methods=["POST"])
 @role_required("oidb")
 def return_application(application_id):
-    application = Application.query.get(application_id)
-    if not application or application.status not in ("submitted",):
-        flash("Cannot return this application.")
-        return redirect(url_for("oidb_api.check_documents"))
     notes = (request.form.get("oidb_notes") or "").strip()
-    if not notes:
-        flash("A reason is required when returning an application.")
-        return redirect(url_for("oidb_api.check_documents"))
-    application.status = "returned"
-    application.oidb_notes = notes
-    db.session.commit()
-    flash(f"Application #{application_id} returned to applicant.", "success")
+    ok, msg = _svc().return_application(application_id, notes)
+    flash(msg, "success" if ok else "error")
     return redirect(url_for("oidb_api.check_documents"))
 
 
 @oidb_api_bp.route("/view-document/<int:doc_id>", methods=["GET"])
 @role_required("oidb")
 def view_document(doc_id):
-    doc = ApplicationDocument.query.get(doc_id)
+    doc = _svc().get_document(doc_id)
     if not doc:
         abort(404)
     return send_file(doc.file_path, mimetype="application/pdf", as_attachment=False)

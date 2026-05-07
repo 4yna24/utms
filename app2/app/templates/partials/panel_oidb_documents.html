@@ -1,0 +1,98 @@
+{% if oidb_applications %}
+    <div class="oidb-header-bar">
+        <div class="stats-row" data-filter-table="oidb-table">
+            <span class="stat-chip chip-total" data-filter="all">Total: {{ oidb_applications|length }}</span>
+            <span class="stat-chip chip-submitted" data-filter="submitted">Submitted: {{ oidb_applications|selectattr('status','eq','submitted')|list|length }}</span>
+            <span class="stat-chip chip-forwarded" data-filter="forwarded_to_ydyo">Forwarded: {{ oidb_applications|selectattr('status','eq','forwarded_to_ydyo')|list|length }}</span>
+            <span class="stat-chip chip-returned" data-filter="returned">Returned: {{ oidb_applications|selectattr('status','eq','returned')|list|length }}</span>
+        </div>
+        <form method="POST" action="{{ url_for('oidb_api.forward_all_to_ydyo') }}" style="display:inline;">
+            <button type="submit" class="soft-btn compact" onclick="return confirm('Forward ALL submitted applications to YDYO?')">Forward All to YDYO</button>
+        </form>
+    </div>
+
+    <div class="app-table-wrap">
+        <table class="app-table" id="oidb-table">
+            <thead>
+                <tr>
+                    <th data-sort="0">#</th>
+                    <th data-sort="1">Name</th>
+                    <th data-sort="2">Program</th>
+                    <th data-sort="3">Semester</th>
+                    <th data-sort="4">Status</th>
+                    <th data-sort="5">Submitted</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for app in oidb_applications %}
+                <tr class="app-row-header" data-app-id="{{ app.id }}" data-status="{{ app.status }}">
+                    <td>{{ app.id }}</td>
+                    <td>{{ app.full_name }}</td>
+                    <td>{{ app.target_program or app.target_department }}</td>
+                    <td>{{ app.target_semester or '—' }}</td>
+                    <td><span class="status-badge status-{{ app.status }}">{{ app.status|replace('_',' ')|title }}</span></td>
+                    <td>{{ app.created_at.strftime('%d %b %Y') }}</td>
+                    <td><button class="soft-btn compact alt expand-btn" type="button" data-app-id="{{ app.id }}">Expand</button></td>
+                </tr>
+                <tr class="app-row-expand" id="expand-{{ app.id }}" hidden>
+                    <td colspan="7">
+                        <div class="expand-content">
+                            <div class="expand-cols">
+                                <div>
+                                    <div class="section-heading">Applicant Details</div>
+                                    <div class="detail-grid">
+                                        <span class="detail-label">Email</span><span>{{ app.applicant.email if app.applicant else '—' }}</span>
+                                        <span class="detail-label">ID Number</span><span>{{ app.id_number or app.student_number }}</span>
+                                        <span class="detail-label">GPA</span><span>{{ app.current_gpa }}</span>
+                                        <span class="detail-label">University</span><span>{{ app.source_university or '—' }}</span>
+                                        <span class="detail-label">Enrolled</span><span>{{ 'Yes' if app.is_currently_enrolled else 'No' }}</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="section-heading">Documents</div>
+                                    {% if app.documents %}
+                                        <ul class="doc-list">
+                                            {% for doc in app.documents %}
+                                                <li class="doc-item">
+                                                    <input type="checkbox" class="doc-check" title="Mark verified">
+                                                    <span>{{ doc.original_name }}</span>
+                                                    <a class="soft-btn compact alt" href="{{ url_for('oidb_api.view_document', doc_id=doc.id) }}" target="_blank">View</a>
+                                                </li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        <p class="subline">No documents.</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            {% if app.oidb_notes %}
+                                <div class="info-box warning" style="margin:10px 0 0;">
+                                    <strong>Previous return reason:</strong> {{ app.oidb_notes }}
+                                </div>
+                            {% endif %}
+
+                            {% if app.status == 'submitted' %}
+                            <div class="action-row">
+                                <form method="POST" action="{{ url_for('oidb_api.forward_to_ydyo', application_id=app.id) }}">
+                                    <button type="submit" class="soft-btn">Approve &amp; Forward to YDYO</button>
+                                </form>
+                                <form method="POST" action="{{ url_for('oidb_api.return_application', application_id=app.id) }}" class="return-form">
+                                    <textarea name="oidb_notes" placeholder="State reason for returning…" rows="2" required></textarea>
+                                    <button type="submit" class="soft-btn danger-btn">Return to Applicant</button>
+                                </form>
+                            </div>
+                            {% else %}
+                                <p class="subline" style="margin-top:10px;">No actions — status: <strong>{{ app.status|replace('_',' ') }}</strong></p>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <p class="subline">No applications submitted yet.</p>
+{% endif %}

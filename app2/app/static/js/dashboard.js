@@ -138,7 +138,91 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ── OIDB expand rows ──
+    // ── Chip filters ──
+    document.querySelectorAll('.stats-row[data-filter-table]').forEach(group => {
+        const table = document.getElementById(group.dataset.filterTable);
+        if (!table) return;
+        const chips = group.querySelectorAll('[data-filter]');
+
+        chips.forEach(chip => {
+            chip.addEventListener('click', function () {
+                const alreadyActive = this.classList.contains('chip-active');
+                chips.forEach(c => c.classList.remove('chip-active'));
+                const filter = alreadyActive ? 'all' : this.dataset.filter;
+                if (!alreadyActive) this.classList.add('chip-active');
+                filterTableRows(table, filter);
+            });
+        });
+    });
+
+    function filterTableRows(table, filter) {
+        const rows = Array.from(table.querySelectorAll('tbody tr'));
+        for (let i = 0; i < rows.length; i += 2) {
+            const header = rows[i];
+            const expand = rows[i + 1];
+            const show = filter === 'all' || header.dataset.status === filter;
+            header.style.display = show ? '' : 'none';
+            if (expand) expand.style.display = show ? '' : 'none';
+        }
+    }
+
+    // ── Sortable table columns ──
+    function initSortableTable(tableId) {
+        const table = document.getElementById(tableId);
+        if (!table) return;
+        const headers = table.querySelectorAll('thead th[data-sort]');
+        let currentCol = null, ascending = true;
+
+        headers.forEach(th => {
+            th.style.cursor = 'pointer';
+            th.title = 'Click to sort';
+            th.addEventListener('click', function () {
+                const col = parseInt(this.dataset.sort);
+                if (currentCol === col) {
+                    ascending = !ascending;
+                } else {
+                    currentCol = col;
+                    ascending = true;
+                }
+
+                headers.forEach(h => {
+                    const ind = h.querySelector('.sort-ind');
+                    if (ind) h.removeChild(ind);
+                });
+                const ind = document.createElement('span');
+                ind.className = 'sort-ind';
+                ind.textContent = ascending ? ' ▲' : ' ▼';
+                ind.style.fontSize = '10px';
+                this.appendChild(ind);
+
+                const tbody = table.querySelector('tbody');
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                const pairs = [];
+                for (let i = 0; i < rows.length; i += 2) {
+                    pairs.push([rows[i], rows[i + 1]]);
+                }
+
+                pairs.sort((a, b) => {
+                    const aText = (a[0].cells[col] ? a[0].cells[col].textContent : '').trim();
+                    const bText = (b[0].cells[col] ? b[0].cells[col].textContent : '').trim();
+                    const aNum = parseFloat(aText);
+                    const bNum = parseFloat(bText);
+                    if (!isNaN(aNum) && !isNaN(bNum)) return ascending ? aNum - bNum : bNum - aNum;
+                    return ascending ? aText.localeCompare(bText) : bText.localeCompare(aText);
+                });
+
+                pairs.forEach(pair => {
+                    tbody.appendChild(pair[0]);
+                    tbody.appendChild(pair[1]);
+                });
+            });
+        });
+    }
+
+    initSortableTable('oidb-table');
+    initSortableTable('dean-table');
+
+    // ── Expand rows ──
     document.querySelectorAll('.expand-btn').forEach(btn => {
         btn.addEventListener('click', e => {
             e.stopPropagation();

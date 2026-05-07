@@ -1,4 +1,4 @@
-"""Role-oriented domain user classes for Phase 1 shell."""
+"""Role-oriented domain user classes."""
 
 from __future__ import annotations
 
@@ -16,21 +16,12 @@ class User(ABC):
         self.email = email
         self.role = role
 
-    def login(self) -> bool:
-        """User login state transition placeholder."""
-        return True
-
-    def logout(self) -> bool:
-        """User logout state transition placeholder."""
-        return True
-
     def get_id(self) -> int:
-        """Return unique identifier."""
         return self.user_id
 
 
 class Applicant(User, IDocumentHandler):
-    """Applicant business role shell."""
+    """Applicant business role."""
 
     def upload(self, payload: dict[str, Any]) -> bool:
         return bool(payload)
@@ -38,14 +29,11 @@ class Applicant(User, IDocumentHandler):
     def validate(self, document_id: int) -> bool:
         return document_id > 0
 
-    def retrieve(self, applicant_id: int) -> list[dict[str, Any]]:
-        return [{"applicant_id": applicant_id, "state": "shell"}]
+    def retrieve(self, applicant_id: int) -> list:
+        return []
 
     def submit_document(self, payload: dict[str, Any]) -> bool:
         return self.upload(payload)
-
-    def track_document(self) -> dict[str, str]:
-        return {"status": "Phase 1 shell"}
 
     def cancel_application(self) -> bool:
         return True
@@ -55,23 +43,52 @@ class Applicant(User, IDocumentHandler):
 
 
 class DeanOffice(User, IReviewer):
-    """Dean office reviewer shell."""
+    """Dean office reviewer."""
 
-    def get_pending_applicants(self) -> list[dict[str, Any]]:
-        return []
+    def get_pending_applicants(self) -> list:
+        from ..models import Application
+        from sqlalchemy.orm import selectinload
+        return (
+            Application.query
+            .options(selectinload(Application.documents), selectinload(Application.applicant))
+            .filter(Application.status.in_(["forwarded_to_dean", "forwarded_to_ygk"]))
+            .order_by(Application.created_at.desc())
+            .all()
+        )
 
-    def update_applicant_status(self, applicant_id: int, status: str) -> bool:
-        return applicant_id > 0 and bool(status)
-
-    def receive_documents(self) -> list[dict[str, Any]]:
-        return []
-
-    def forward_documents(self) -> bool:
+    def update_applicant_status(self, application_id: int, status: str) -> bool:
+        from .. import db
+        from ..models import Application
+        app = Application.query.get(application_id)
+        if not app:
+            return False
+        app.status = status
+        db.session.commit()
         return True
+
+    def forward_to_ygk(self, application_id: int) -> tuple[bool, str]:
+        from .. import db
+        from ..models import Application
+        app = Application.query.get(application_id)
+        if not app or app.status != "forwarded_to_dean":
+            return False, "Cannot forward this application."
+        app.status = "forwarded_to_ygk"
+        db.session.commit()
+        return True, f"Application #{application_id} forwarded to YGK."
+
+    def forward_all_to_ygk(self) -> int:
+        from .. import db
+        from ..models import Application
+        apps = Application.query.filter_by(status="forwarded_to_dean").all()
+        count = len(apps)
+        for a in apps:
+            a.status = "forwarded_to_ygk"
+        db.session.commit()
+        return count
 
 
 class YGK(User, IReviewer):
-    """YGK reviewer shell."""
+    """YGK reviewer."""
 
     def get_pending_applicants(self) -> list[dict[str, Any]]:
         return []
@@ -90,13 +107,64 @@ class YGK(User, IReviewer):
 
 
 class Oidb(User, IReviewer, IDocumentHandler):
-    """OIDB role shell."""
+    """OIDB role."""
 
-    def get_pending_applicants(self) -> list[dict[str, Any]]:
-        return []
+    def get_pending_applicants(self) -> list:
+        from ..models import Application
+        from sqlalchemy.orm import selectinload
+        return (
+            Application.query
+            .options(selectinload(Application.documents), selectinload(Application.applicant))
+            .order_by(Application.created_at.desc())
+            .all()
+        )
 
-    def update_applicant_status(self, applicant_id: int, status: str) -> bool:
-        return applicant_id > 0 and bool(status)
+    def update_applicant_status(self, application_id: int, status: str) -> bool:
+        from .. import db
+        from ..models import Application
+        app = Application.query.get(application_id)
+        if not app:
+            return False
+        app.status = status
+        db.session.commit()
+        return True
+
+    def forward_to_ydyo(self, application_id: int) -> tuple[bool, str]:
+        from .. import db
+        from ..models import Application
+        app = Application.query.get(application_id)
+        if not app or app.status not in ("submitted", "returned"):
+            return False, "Cannot forward this application."
+        app.status = "forwarded_to_ydyo"
+        db.session.commit()
+        return True, f"Application #{application_id} forwarded to YDYO."
+
+    def forward_all_to_ydyo(self) -> int:
+        from .. import db
+        from ..models import Application
+        apps = Application.query.filter_by(status="submitted").all()
+        count = len(apps)
+        for a in apps:
+            a.status = "forwarded_to_ydyo"
+        db.session.commit()
+        return count
+
+    def return_application(self, application_id: int, notes: str) -> tuple[bool, str]:
+        from .. import db
+        from ..models import Application
+        app = Application.query.get(application_id)
+        if not app or app.status not in ("submitted",):
+            return False, "Cannot return this application."
+        if not notes.strip():
+            return False, "A reason is required when returning an application."
+        app.status = "returned"
+        app.oidb_notes = notes
+        db.session.commit()
+        return True, f"Application #{application_id} returned to applicant."
+
+    def get_document(self, doc_id: int):
+        from ..models import ApplicationDocument
+        return ApplicationDocument.query.get(doc_id)
 
     def upload(self, payload: dict[str, Any]) -> bool:
         return bool(payload)
@@ -104,21 +172,12 @@ class Oidb(User, IReviewer, IDocumentHandler):
     def validate(self, document_id: int) -> bool:
         return document_id > 0
 
-    def retrieve(self, applicant_id: int) -> list[dict[str, Any]]:
-        return [{"applicant_id": applicant_id, "state": "shell"}]
-
-    def retrieve_documents(self) -> list[dict[str, Any]]:
-        return []
-
-    def edit_documents(self) -> bool:
-        return True
-
-    def create_waitlist_table(self) -> bool:
-        return True
+    def retrieve(self, applicant_id: int) -> list:
+        return self.get_pending_applicants()
 
 
 class Ydyo(User, IReviewer):
-    """YDYO role shell."""
+    """YDYO role."""
 
     def get_pending_applicants(self) -> list[dict[str, Any]]:
         return []

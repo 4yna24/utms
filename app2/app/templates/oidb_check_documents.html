@@ -28,10 +28,16 @@
             </div>
 
             <div class="app-table-wrap">
-                <table class="app-table">
+                <table class="app-table" id="oidb-table">
                     <thead>
                         <tr>
-                            <th>#</th><th>Name</th><th>Program</th><th>Semester</th><th>Status</th><th>Submitted</th><th></th>
+                            <th data-sort="0">#</th>
+                            <th data-sort="1">Name</th>
+                            <th data-sort="2">Program</th>
+                            <th data-sort="3">Semester</th>
+                            <th data-sort="4">Status</th>
+                            <th data-sort="5">Submitted</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -126,5 +132,63 @@
             }
         });
     });
+
+    initSortableTable('oidb-table');
+
+    function initSortableTable(tableId) {
+        var table = document.getElementById(tableId);
+        if (!table) return;
+        var headers = table.querySelectorAll('thead th[data-sort]');
+        var currentCol = null, ascending = true;
+
+        headers.forEach(function(th) {
+            th.style.cursor = 'pointer';
+            th.title = 'Click to sort';
+            th.addEventListener('click', function() {
+                var col = parseInt(this.dataset.sort);
+                if (currentCol === col) {
+                    ascending = !ascending;
+                } else {
+                    currentCol = col;
+                    ascending = true;
+                }
+
+                headers.forEach(function(h) {
+                    var ind = h.querySelector('.sort-ind');
+                    if (ind) h.removeChild(ind);
+                });
+                var ind = document.createElement('span');
+                ind.className = 'sort-ind';
+                ind.textContent = ascending ? ' ▲' : ' ▼';
+                ind.style.fontSize = '10px';
+                this.appendChild(ind);
+
+                var tbody = table.querySelector('tbody');
+                var rows = Array.from(tbody.querySelectorAll('tr'));
+                var pairs = [];
+                for (var i = 0; i < rows.length; i += 2) {
+                    pairs.push([rows[i], rows[i + 1]]);
+                }
+
+                pairs.sort(function(a, b) {
+                    var aCell = a[0].cells[col];
+                    var bCell = b[0].cells[col];
+                    var aText = aCell ? aCell.textContent.trim() : '';
+                    var bText = bCell ? bCell.textContent.trim() : '';
+                    var aNum = parseFloat(aText);
+                    var bNum = parseFloat(bText);
+                    if (!isNaN(aNum) && !isNaN(bNum)) {
+                        return ascending ? aNum - bNum : bNum - aNum;
+                    }
+                    return ascending ? aText.localeCompare(bText) : bText.localeCompare(aText);
+                });
+
+                pairs.forEach(function(pair) {
+                    tbody.appendChild(pair[0]);
+                    tbody.appendChild(pair[1]);
+                });
+            });
+        });
+    }
 </script>
 {% endblock %}

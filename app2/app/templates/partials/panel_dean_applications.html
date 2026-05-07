@@ -1,0 +1,85 @@
+{% if dean_applications %}
+    <div class="oidb-header-bar">
+        <div class="stats-row" data-filter-table="dean-table">
+            <span class="stat-chip chip-total" data-filter="all">Total: {{ dean_applications|length }}</span>
+            <span class="stat-chip chip-submitted" data-filter="forwarded_to_dean">Pending: {{ dean_applications|selectattr('status','eq','forwarded_to_dean')|list|length }}</span>
+            <span class="stat-chip chip-forwarded" data-filter="forwarded_to_ygk">Forwarded: {{ dean_applications|selectattr('status','eq','forwarded_to_ygk')|list|length }}</span>
+        </div>
+        <form method="POST" action="{{ url_for('dean_api.forward_all_to_ygk') }}" style="display:inline;">
+            <button type="submit" class="soft-btn compact" onclick="return confirm('Forward ALL pending applications to YGK?')">Forward All to YGK</button>
+        </form>
+    </div>
+
+    <div class="app-table-wrap">
+        <table class="app-table" id="dean-table">
+            <thead>
+                <tr>
+                    <th data-sort="0">#</th>
+                    <th data-sort="1">Name</th>
+                    <th data-sort="2">Program</th>
+                    <th data-sort="3">Semester</th>
+                    <th data-sort="4">Status</th>
+                    <th data-sort="5">Submitted</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for app in dean_applications %}
+                <tr class="app-row-header" data-app-id="{{ app.id }}" data-status="{{ app.status }}">
+                    <td>{{ app.id }}</td>
+                    <td>{{ app.full_name }}</td>
+                    <td>{{ app.target_program or app.target_department }}</td>
+                    <td>{{ app.target_semester or '—' }}</td>
+                    <td><span class="status-badge status-{{ app.status }}">{{ app.status|replace('_',' ')|title }}</span></td>
+                    <td>{{ app.created_at.strftime('%d %b %Y') }}</td>
+                    <td><button class="soft-btn compact alt expand-btn" type="button" data-app-id="{{ app.id }}">Expand</button></td>
+                </tr>
+                <tr class="app-row-expand" id="expand-{{ app.id }}" hidden>
+                    <td colspan="7">
+                        <div class="expand-content">
+                            <div class="expand-cols">
+                                <div>
+                                    <div class="section-heading">Applicant Details</div>
+                                    <div class="detail-grid">
+                                        <span class="detail-label">Email</span><span>{{ app.applicant.email if app.applicant else '—' }}</span>
+                                        <span class="detail-label">ID Number</span><span>{{ app.id_number or app.student_number }}</span>
+                                        <span class="detail-label">GPA</span><span>{{ app.current_gpa }}</span>
+                                        <span class="detail-label">University</span><span>{{ app.source_university or '—' }}</span>
+                                        <span class="detail-label">Enrolled</span><span>{{ 'Yes' if app.is_currently_enrolled else 'No' }}</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="section-heading">Documents</div>
+                                    {% if app.documents %}
+                                        <ul class="doc-list">
+                                            {% for doc in app.documents %}
+                                                <li class="doc-item">
+                                                    <span>{{ doc.original_name }}</span>
+                                                </li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        <p class="subline">No documents.</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            {% if app.status == 'forwarded_to_dean' %}
+                            <div class="action-row">
+                                <form method="POST" action="{{ url_for('dean_api.forward_to_ygk', application_id=app.id) }}">
+                                    <button type="submit" class="soft-btn">Forward to YGK</button>
+                                </form>
+                            </div>
+                            {% else %}
+                                <p class="subline" style="margin-top:10px;">No actions — status: <strong>{{ app.status|replace('_',' ') }}</strong></p>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <p class="subline">No applications forwarded to Dean yet.</p>
+{% endif %}
