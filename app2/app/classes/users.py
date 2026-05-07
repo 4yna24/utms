@@ -38,7 +38,6 @@ class Applicant(User, IDocumentHandler):
 
     @staticmethod
     def parse_form_data(form) -> dict:
-        is_enrolled = bool(form.get("is_currently_enrolled"))
         id_number = (form.get("id_number") or "").strip()
         target_program = (form.get("target_program") or "").strip()
         return {
@@ -49,13 +48,13 @@ class Applicant(User, IDocumentHandler):
             "target_department": target_program,
             "target_semester": (form.get("target_semester") or "").strip(),
             "current_gpa": (form.get("current_gpa") or "").strip(),
-            "source_university": (form.get("source_university") or "").strip() if is_enrolled else "",
-            "is_currently_enrolled": is_enrolled,
+            "source_university": (form.get("source_university") or "").strip(),
+            "is_currently_enrolled": True,
         }
 
     @staticmethod
     def validate_form_data(form_data: dict) -> tuple[bool, str]:
-        required = ["full_name", "id_number", "target_program", "target_semester", "current_gpa"]
+        required = ["full_name", "id_number", "target_program", "target_semester", "current_gpa", "source_university"]
         if not all(bool(form_data.get(k)) for k in required):
             return False, "All required fields must be filled."
         try:
@@ -79,7 +78,7 @@ class Applicant(User, IDocumentHandler):
             label = slot_def["label"]
             file_item = files.get(f"document_{slot}")
             if file_item is None or file_item.filename == "":
-                raise ValueError(f"{label} is required.")
+                continue
             if not file_item.filename.lower().endswith(".pdf"):
                 raise ValueError(f"{label} must be a PDF file.")
             safe_name = secure_filename(file_item.filename)

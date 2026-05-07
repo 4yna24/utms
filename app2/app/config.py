@@ -17,9 +17,10 @@ APPLICATION_DOCUMENT_SLOTS = [
     {"slot": 1, "label": "Student Certificate"},
     {"slot": 2, "label": "Transcript"},
     {"slot": 3, "label": "YKS Score Report"},
+    {"slot": 4, "label": "English Proficiency Certificate", "optional": True},
 ]
-# Legacy alias
-APPLICATION_REQUIRED_DOCUMENT_SLOTS = [s["slot"] for s in APPLICATION_DOCUMENT_SLOTS]
+# Legacy alias — only required slots
+APPLICATION_REQUIRED_DOCUMENT_SLOTS = [s["slot"] for s in APPLICATION_DOCUMENT_SLOTS if not s.get("optional")]
 
 AVAILABLE_PROGRAMS = [
     "Computer Engineering",

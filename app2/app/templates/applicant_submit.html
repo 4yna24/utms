@@ -99,14 +99,8 @@
                             <label>Current GPA <span class="subline">(0.00 – 4.00)</span>
                                 <input type="number" name="current_gpa" min="0" max="4.0" step="0.01" placeholder="e.g. 3.50" value="{{ app.current_gpa if app else '' }}" required>
                             </label>
-                        </div>
-                        <label class="checkbox-label">
-                            <input type="checkbox" name="is_currently_enrolled" id="enrolled-standalone"{% if app and app.is_currently_enrolled %} checked{% endif %}>
-                            Currently enrolled at a university
-                        </label>
-                        <div class="university-field" id="univ-standalone"{% if app and app.is_currently_enrolled %} style="display:block"{% endif %}>
                             <label>Current University
-                                <input type="text" name="source_university" placeholder="Institution name" value="{{ app.source_university if app else '' }}">
+                                <input type="text" name="source_university" placeholder="Institution name" value="{{ app.source_university if app else '' }}" required>
                             </label>
                         </div>
                     </div>
@@ -120,10 +114,11 @@
                     <div class="form-section">
                         <div class="document-grid">
                             {% for slot in document_slots %}
+                                {% set optional = slot.optional if slot.optional is defined else false %}
                                 <label class="doc-upload-label">
-                                    <span class="doc-upload-name">{{ slot.label }}</span>
-                                    <span class="subline" style="font-size:11px">PDF required</span>
-                                    <input type="file" name="document_{{ slot.slot }}" accept="application/pdf,.pdf" required>
+                                    <span class="doc-upload-name">{{ slot.label }}{% if optional %} <span class="subline">(optional)</span>{% endif %}</span>
+                                    <span class="subline" style="font-size:11px">PDF, leave empty to skip</span>
+                                    <input type="file" name="document_{{ slot.slot }}" accept="application/pdf,.pdf">
                                     {% if app %}
                                         {% for d in app.documents if d.document_slot == slot.slot %}
                                             <span class="doc-prev-note">Previously: {{ d.original_name }}</span>
@@ -166,17 +161,6 @@
 
             </form>
 
-            <script>
-                (function() {
-                    var cb = document.getElementById('enrolled-standalone');
-                    var field = document.getElementById('univ-standalone');
-                    if (cb && field) {
-                        cb.addEventListener('change', function() {
-                            field.style.display = this.checked ? 'block' : 'none';
-                        });
-                    }
-                })();
-            </script>
         {% endif %}
     </div>
 </section>

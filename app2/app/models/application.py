@@ -21,9 +21,8 @@ class Application(db.Model):
     # Legacy — kept for backward compat; mirrors id_number on new submissions
     student_number = db.Column(db.String(32), nullable=False, default="")
 
-    # Current institution (populated when is_currently_enrolled is True)
     source_university = db.Column(db.String(120), nullable=False, default="")
-    is_currently_enrolled = db.Column(db.Boolean, nullable=False, default=False)
+    is_currently_enrolled = db.Column(db.Boolean, nullable=False, default=True)
 
     # Target program
     target_program = db.Column(db.String(120), nullable=False, default="")
