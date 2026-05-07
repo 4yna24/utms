@@ -9,6 +9,7 @@ from ..config import ROLE_DEFINITIONS
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 STAFF_ROLE_DEFINITIONS = [role for role in ROLE_DEFINITIONS if role["slug"] != "applicant"]
+_STAFF_SLUGS = {role["slug"] for role in STAFF_ROLE_DEFINITIONS}
 
 
 def _render_login(template_context: dict):
@@ -23,6 +24,12 @@ def _redirect_if_authenticated():
     if session.get("user_id"):
         return redirect(url_for("dashboard.index"))
     return None
+
+
+def _set_session(user) -> None:
+    session["user_id"] = user.id
+    session["user_email"] = user.email
+    session["user_role"] = user.role
 
 
 @auth_bp.route("/register", methods=["GET", "POST"])
@@ -41,7 +48,7 @@ def login():
     target_role = request.args.get("role")
     if target_role == "applicant":
         return redirect(url_for("auth.applicant_login"))
-    if target_role in {role["slug"] for role in STAFF_ROLE_DEFINITIONS}:
+    if target_role in _STAFF_SLUGS:
         return redirect(url_for("auth.staff_login", role=target_role))
     return redirect(url_for("auth.staff_login"))
 
@@ -74,13 +81,13 @@ def applicant_register():
     if request.method == "POST":
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""
-        role = "applicant"
 
-        if not email or not password:
-            flash("All fields are required.")
+        valid, msg = auth_service.validate_credentials(email, password)
+        if not valid:
+            flash(msg)
             return redirect(url_for("auth.applicant_register"))
 
-        user = auth_service.register_user(email=email, password=password, role=role, check_user_validity=True)
+        user = auth_service.register_user(email=email, password=password, role="applicant", check_user_validity=True)
         if user is None:
             flash("Email already exists for applicant role.")
             return redirect(url_for("auth.applicant_register"))
@@ -113,8 +120,9 @@ def applicant_login():
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""
 
-        if not email or not password:
-            flash("All fields are required.")
+        valid, msg = auth_service.validate_credentials(email, password)
+        if not valid:
+            flash(msg)
             return redirect(url_for("auth.applicant_login"))
 
         user = auth_service.authenticate_user(email=email, password=password, role="applicant")
@@ -122,9 +130,7 @@ def applicant_login():
             flash("Invalid credentials.")
             return redirect(url_for("auth.applicant_login"))
 
-        session["user_id"] = user.id
-        session["user_email"] = user.email
-        session["user_role"] = user.role
+        _set_session(user)
         return redirect(url_for("dashboard.index"))
 
     return _render_login(
@@ -153,8 +159,9 @@ def staff_register():
         password = request.form.get("password") or ""
         role = request.form.get("role") or ""
 
-        if not email or not password or role not in {item["slug"] for item in STAFF_ROLE_DEFINITIONS}:
-            flash("All fields are required and role must be a staff role.")
+        valid, msg = auth_service.validate_credentials(email, password, role=role, valid_roles=_STAFF_SLUGS)
+        if not valid:
+            flash(msg)
             return redirect(url_for("auth.staff_register"))
 
         user = auth_service.register_user(email=email, password=password, role=role, check_user_validity=True)
@@ -186,15 +193,15 @@ def staff_login():
         return already_authenticated
 
     auth_service = AuthClass()
-    staff_slugs = {item["slug"] for item in STAFF_ROLE_DEFINITIONS}
 
     if request.method == "POST":
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""
         role = request.form.get("role") or ""
 
-        if not email or not password or role not in staff_slugs:
-            flash("All fields are required and role must be a staff role.")
+        valid, msg = auth_service.validate_credentials(email, password, role=role, valid_roles=_STAFF_SLUGS)
+        if not valid:
+            flash(msg)
             return redirect(url_for("auth.staff_login"))
 
         user = auth_service.authenticate_user(email=email, password=password, role=role)
@@ -202,9 +209,7 @@ def staff_login():
             flash("Invalid credentials.")
             return redirect(url_for("auth.staff_login", role=role))
 
-        session["user_id"] = user.id
-        session["user_email"] = user.email
-        session["user_role"] = user.role
+        _set_session(user)
         return redirect(url_for("dashboard.index"))
 
     return _render_login(

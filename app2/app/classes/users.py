@@ -23,6 +23,8 @@ class User(ABC):
 class Applicant(User, IDocumentHandler):
     """Applicant business role."""
 
+    # --- IDocumentHandler interface ---
+
     def upload(self, payload: dict[str, Any]) -> bool:
         return bool(payload)
 
@@ -32,14 +34,128 @@ class Applicant(User, IDocumentHandler):
     def retrieve(self, applicant_id: int) -> list:
         return []
 
-    def submit_document(self, payload: dict[str, Any]) -> bool:
-        return self.upload(payload)
+    # --- Form helpers (static — no Flask context needed) ---
 
-    def cancel_application(self) -> bool:
-        return True
+    @staticmethod
+    def parse_form_data(form) -> dict:
+        is_enrolled = bool(form.get("is_currently_enrolled"))
+        id_number = (form.get("id_number") or "").strip()
+        target_program = (form.get("target_program") or "").strip()
+        return {
+            "full_name": (form.get("full_name") or "").strip(),
+            "id_number": id_number,
+            "student_number": id_number,
+            "target_program": target_program,
+            "target_department": target_program,
+            "target_semester": (form.get("target_semester") or "").strip(),
+            "current_gpa": (form.get("current_gpa") or "").strip(),
+            "source_university": (form.get("source_university") or "").strip() if is_enrolled else "",
+            "is_currently_enrolled": is_enrolled,
+        }
 
-    def resubmit_documents(self) -> bool:
-        return True
+    @staticmethod
+    def validate_form_data(form_data: dict) -> tuple[bool, str]:
+        required = ["full_name", "id_number", "target_program", "target_semester", "current_gpa"]
+        if not all(bool(form_data.get(k)) for k in required):
+            return False, "All required fields must be filled."
+        try:
+            gpa = float(form_data["current_gpa"])
+            if not (0.0 <= gpa <= 4.0):
+                return False, "GPA must be between 0.00 and 4.00."
+        except ValueError:
+            return False, "GPA must be a valid number (e.g. 3.50)."
+        return True, ""
+
+    # --- Document saving ---
+
+    def save_documents(self, application_id: int, upload_root, files, document_slots) -> list:
+        from pathlib import Path
+        from werkzeug.utils import secure_filename
+        from ..models import ApplicationDocument
+
+        docs = []
+        for slot_def in document_slots:
+            slot = slot_def["slot"]
+            label = slot_def["label"]
+            file_item = files.get(f"document_{slot}")
+            if file_item is None or file_item.filename == "":
+                raise ValueError(f"{label} is required.")
+            if not file_item.filename.lower().endswith(".pdf"):
+                raise ValueError(f"{label} must be a PDF file.")
+            safe_name = secure_filename(file_item.filename)
+            stored_name = f"application_{application_id}_document_{slot}_{safe_name}"
+            full_path = Path(upload_root) / stored_name
+            file_item.save(full_path)
+            docs.append(ApplicationDocument(
+                application_id=application_id,
+                document_slot=slot,
+                original_name=safe_name,
+                stored_name=stored_name,
+                file_path=str(full_path),
+            ))
+        return docs
+
+    # --- Application lifecycle ---
+
+    def submit(self, form_data: dict, upload_root, files, document_slots) -> tuple[bool, str]:
+        from pathlib import Path
+        from sqlalchemy.exc import IntegrityError
+        from .. import db
+        from ..models import Application
+
+        if Application.query.filter_by(applicant_id=self.user_id).first() is not None:
+            return False, "You already have an application."
+        try:
+            application = Application(applicant_id=self.user_id, status="submitted", **form_data)
+            db.session.add(application)
+            db.session.flush()
+            root = Path(upload_root)
+            root.mkdir(parents=True, exist_ok=True)
+            for doc in self.save_documents(application.id, root, files, document_slots):
+                db.session.add(doc)
+            db.session.commit()
+        except ValueError as exc:
+            db.session.rollback()
+            return False, str(exc)
+        except IntegrityError:
+            db.session.rollback()
+            return False, "Could not create application due to a data conflict."
+        except OSError:
+            db.session.rollback()
+            return False, "Could not store uploaded files."
+        return True, ""
+
+    def resubmit(self, application, form_data: dict, upload_root, files, document_slots) -> tuple[bool, str]:
+        from pathlib import Path
+        from .. import db
+
+        try:
+            for field, value in form_data.items():
+                setattr(application, field, value)
+            application.status = "submitted"
+            application.oidb_notes = None
+            for old_doc in list(application.documents):
+                db.session.delete(old_doc)
+            db.session.flush()
+            root = Path(upload_root)
+            root.mkdir(parents=True, exist_ok=True)
+            for doc in self.save_documents(application.id, root, files, document_slots):
+                db.session.add(doc)
+            db.session.commit()
+        except ValueError as exc:
+            db.session.rollback()
+            return False, str(exc)
+        except OSError:
+            db.session.rollback()
+            return False, "Could not store uploaded files."
+        return True, ""
+
+    def cancel(self, application) -> tuple[bool, str]:
+        from .. import db
+
+        application.status = "cancelled"
+        db.session.commit()
+        return True, ""
 
 
 class DeanOffice(User, IReviewer):

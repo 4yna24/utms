@@ -10,6 +10,20 @@ from ..database import get_user_data_interface
 class AuthClass:
     """Encapsulates authentication use cases."""
 
+    def validate_credentials(
+        self,
+        email: str,
+        password: str,
+        role: str | None = None,
+        valid_roles: set[str] | None = None,
+    ) -> tuple[bool, str]:
+        """Return (True, "") when fields are present and role is valid."""
+        if not email or not password:
+            return False, "All fields are required."
+        if role is not None and valid_roles is not None and role not in valid_roles:
+            return False, "All fields are required and role must be a valid role."
+        return True, ""
+
     def authenticate_user(self, email: str, password: str, role: str):
         """Return matching user when credentials are valid."""
         user_data = get_user_data_interface()

@@ -1,4 +1,4 @@
-"""Core domain entities for business layer shell."""
+"""Application and document domain entities."""
 
 from __future__ import annotations
 
@@ -27,12 +27,3 @@ class Document:
     application_id: int
     filename: str
     status: str
-
-
-@dataclass(slots=True)
-class IntibakTable:
-    """Course equivalency table container."""
-
-    table_id: int
-    applicant_id: int
-    state: str
