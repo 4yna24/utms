@@ -75,12 +75,12 @@
 
                             {% if app.status == 'submitted' %}
                             <div class="action-row">
-                                <form method="POST" action="{{ url_for('oidb_api.forward_to_ydyo', application_id=app.id) }}">
-                                    <button type="submit" class="soft-btn">Approve &amp; Forward to YDYO</button>
-                                </form>
                                 <form method="POST" action="{{ url_for('oidb_api.return_application', application_id=app.id) }}" class="return-form">
                                     <textarea name="oidb_notes" placeholder="State reason for returning…" rows="2" required></textarea>
                                     <button type="submit" class="soft-btn danger-btn">Return to Applicant</button>
+                                </form>
+                                <form method="POST" action="{{ url_for('oidb_api.forward_to_ydyo', application_id=app.id) }}">
+                                    <button type="submit" class="soft-btn">Approve &amp; Forward to YDYO</button>
                                 </form>
                             </div>
                             {% else %}
