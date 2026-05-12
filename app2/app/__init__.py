@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 from flask import Flask, redirect, render_template, url_for
 from flask_sqlalchemy import SQLAlchemy
@@ -54,10 +55,13 @@ def _ensure_application_new_columns():
 
 def create_app():
     app = Flask(__name__)
-    app.config["SECRET_KEY"] = "utms-1234"
+    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "utms-1234")
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///project.db"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["APPLICATION_UPLOAD_FOLDER"] = str(Path(app.instance_path) / APPLICATION_UPLOAD_SUBDIR)
+    app.config["DEPLOY_WEBHOOK_SECRET"] = os.environ.get("DEPLOY_WEBHOOK_SECRET", "")
+    app.config["DEPLOY_WEBHOOK_COMMAND"] = os.environ.get("DEPLOY_WEBHOOK_COMMAND", "")
+    app.config["DEPLOY_WEBHOOK_TIMEOUT"] = int(os.environ.get("DEPLOY_WEBHOOK_TIMEOUT", "300"))
 
     db.init_app(app)
     from .database import init_database_interfaces
