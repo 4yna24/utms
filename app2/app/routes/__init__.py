@@ -8,7 +8,6 @@ from .applicant import applicant_api_bp
 from .auth import auth_bp
 from .dashboard import dashboard_bp
 from .dean import dean_api_bp
-from .deploy import deploy_bp
 from .oidb import oidb_api_bp
 from .ydyo import ydyo_api_bp
 from .ygk import ygk_api_bp
@@ -20,7 +19,6 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(dashboard_bp)
 
     app.register_blueprint(applicant_api_bp)
-    app.register_blueprint(deploy_bp)
     app.register_blueprint(oidb_api_bp)
     app.register_blueprint(dean_api_bp)
     app.register_blueprint(ygk_api_bp)
