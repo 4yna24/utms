@@ -17,24 +17,28 @@ This file tracks implementation status and UI placement notes for each use case.
 
 **UI note:** Use cases **UC-5**, **UC-6**, **UC-23**, **UC-21** live under the **Track Results** tab. In **Track Results**, the applicant may have options to **resubmit**, **update**, or **cancel**.
 
+## Staff (global)
+
+1. **UC-32** — Log in *(Staff)* — **DONE**
+
 ## Dean
 
 9. **UC-7** — Receive applications *(Dean)* — **DONE**
 10. **UC-8** — Forward application to departmental YGK *(Dean)* — **DONE**
-11. **UC-24** — Login *(Dean)* — **DONE**
+
 
 **UI note:** Use cases **UC-7** and **UC-8** share one page. Dean expands an application, selects the target faculty from a dropdown, and clicks **Forward to YGK** — this records `forwarded_faculty` and transitions status to `forwarded_to_ygk`. The **Forward All to YGK** button is a placeholder (no logic yet). After forwarding, the row shows the selected faculty name in place of the action controls.
 
 ## YGK
 
 12. **UC-18** — Create the intibak tables *(YGK)* — **IGNORE**
-13. **UC-25** — Login *(YGK)* — **DONE**
+
 
 ## OIDB
 
 14. **UC-19** — Retrieve documents *(OIDB)* — **DONE**
 15. **UC-20** — Create waitlist tables *(OIDB)* — **TODO (last)**
-16. **UC-26** — Login *(OIDB)* — **DONE**
+
 17. **UC-27** — Check documents *(OIDB)* — **DONE**
 
 **UI note:** Use cases **UC-19**, **UC-20**, **UC-27** share the same screen/tab:
@@ -45,9 +49,8 @@ This file tracks implementation status and UI placement notes for each use case.
 
 ## YDYO
 
-18. **UC-28** — Login *(YDYO)* — **DONE**
-19. **UC-29** — Set prep school status *(YDYO)* — **DONE**
-20. **UC-30** — Auto-forward all to Dean *(YDYO)* — **TODO (placeholder — button exists, logic not implemented)**
+19. **UC-29** — Recieve Application List *(YDYO)* — **DONE**
+20. **UC-30** — Mark English Prep Status and Forward *(YDYO)* — **DONE**
 
 **UI note:** Use cases **UC-29** and **UC-30** share the **Set Prep School Status** tab:
 

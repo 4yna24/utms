@@ -54,7 +54,7 @@ def _ensure_application_new_columns():
 
 def create_app():
     app = Flask(__name__)
-    app.config["SECRET_KEY"] = "dev-key-123"
+    app.config["SECRET_KEY"] = "utms-1234"
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///project.db"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["APPLICATION_UPLOAD_FOLDER"] = str(Path(app.instance_path) / APPLICATION_UPLOAD_SUBDIR)
