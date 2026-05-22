@@ -1,6 +1,6 @@
 # Codebase Guide
 
-This file explains where things live and why, so that new code goes in the right layer the first time.
+This file explains where things live and why, so that new code goes in the right layer the first time. UTMS uses a three-layer architecture: **Services** (business orchestration) → **Classes** (domain logic) → **Repositories** (data access).
 
 ---
 
@@ -8,56 +8,257 @@ This file explains where things live and why, so that new code goes in the right
 
 ```
 app/
-├── classes/
-│   ├── users.py        ← role classes (Applicant, DeanOffice, Oidb, Ydyo, YGK)
-│   ├── auth.py         ← AuthClass (register, authenticate, validate_credentials)
-│   ├── interfaces.py   ← IReviewer, IDocumentHandler abstract bases
-│   └── entities/       ← domain dataclasses (Application, Document, IntibakTable)
-│       ├── application.py
-│       ├── intibak.py
-│       └── __init__.py
-├── database/       ← DB interface abstraction (used by auth)
-├── models/         ← SQLAlchemy ORM models (data shape only)
-├── routes/         ← thin HTTP handlers (one file per role)
+├── core/
+│   ├── result.py       ← OperationResult[T], ErrorCode enum (NO exceptions)
+│   └── __init__.py
+├── services/           ← ✅ Phase 2: Service layer (NEW)
+│   ├── base_service.py ← BaseService with error(), ok(), validate_required_fields()
+│   ├── application_service.py ← Submit, resubmit, cancel operations
+│   ├── auth_service.py ← Login, register, password_reset
+│   ├── user_service.py ← User operations
+│   └── __init__.py
+├── classes/            ← ✅ Phase 1: Split into users/ directory
+│   ├── users/          ← Role classes with business logic
+│   │   ├── base.py     ← Abstract User class
+│   │   ├── applicant.py    ← Applicant role (submit, track)
+│   │   ├── dean.py         ← DeanOffice role (review, forward)
+│   │   ├── oidb.py         ← Oidb role (document verification)
+│   │   ├── ydyo.py         ← Ydyo role (prep school marking)
+│   │   ├── ygk.py          ← YGK role (approval)
+│   │   └── __init__.py
+│   ├── auth.py         ← Auth class (credentials, tokens)
+│   └── interfaces.py   ← IReviewer, IDocumentHandler abstract bases
+├── database/           ← ✅ Phase 1: Repository pattern
+│   ├── application_repository.py ← ApplicationRepository (all Application queries)
+│   ├── interfaces.py   ← ILowLevelDatabase, IHighLevelDatabase, IUserRepository
+│   ├── adapters.py     ← SQLAlchemyUserDataService (implements IUserRepository)
+│   └── __init__.py
+├── models/             ← SQLAlchemy ORM (data shape only, no logic)
+│   ├── user.py
+│   ├── application.py
+│   └── __init__.py
+├── routes/             ← ✅ Phase 2: Thin HTTP controllers
+│   ├── auth.py         ← Login, register endpoints (uses AuthService)
+│   ├── applicant.py    ← Submit, resubmit, cancel (uses ApplicationService)
+│   ├── dean.py         ← Review, forward to YGK (calls DeanOffice class)
+│   ├── oidb.py         ← Verify docs, forward to YDYO (calls Oidb class)
+│   ├── ydyo.py         ← Mark prep school, forward (calls Ydyo class)
+│   ├── ygk.py          ← Approve applications (calls YGK class)
+│   ├── dashboard.py    ← Dashboard page load, tab data gathering
+│   ├── common.py       ← Shared decorators (@require_role)
+│   └── __init__.py
 ├── static/
-│   ├── css/        ← dashboard.css, main.css, auth.css
-│   └── js/         ← dashboard.js (all dashboard interactivity)
+│   ├── css/
+│   │   ├── main.css        ← Toast styling, global layout
+│   │   ├── auth.css        ← Auth page centering
+│   │   └── dashboard.css   ← Dashboard tab system
+│   └── js/
+│       └── dashboard.js    ← Tab switching, filters, sorting, expand rows
 ├── templates/
-│   ├── partials/   ← dashboard panel fragments, one per tab
-│   └── *.html      ← standalone pages + base
-├── __init__.py     ← create_app(), SQLite migration helpers
-└── config.py       ← PHASE1_TABS, reference-data constants, feature flags
+│   ├── base.html       ← Page shell with nav, flash messages
+│   ├── dashboard.html  ← Tab system (auto-includes partials)
+│   ├── login.html, register.html, etc. ← Standalone pages
+│   └── partials/       ← Dashboard tab content fragments
+│       ├── panel_applicant_*.html
+│       ├── panel_oidb_documents.html
+│       └── ...
+├── __init__.py         ← create_app(), db initialization
+└── config.py           ← PHASE1_TABS, AVAILABLE_PROGRAMS, feature flags
 ```
 
 ---
 
-## The Three Layers and What Goes Where
+## The Three-Layer Architecture (Phase 2)
 
-### `classes/` — Business Logic
-This is where decisions happen. Role classes (`Oidb`, `DeanOffice`, `Applicant`, etc.) own all domain logic: querying applications, validating state transitions, committing changes.
-
-- **Add logic here, not in routes.**
-- Each role class is instantiated per request using session data: `DeanOffice(user_id, email, "dean")`.
-- DB imports (`from .. import db`, `from ..models import Application`) go inside methods to avoid circular imports.
-- `classes/interfaces.py` defines abstract base classes (`IReviewer`, `IDocumentHandler`) that role classes implement.
-
-### `routes/` — HTTP Handlers Only
-Routes parse the request, call one class method, flash the result, and return.
+### Layer 1: `routes/` — HTTP Controllers (Thin)
+Routes are stateless HTTP handlers that:
+1. Parse the request (form data, URL params)
+2. Call ONE service/class method
+3. Handle the OperationResult (success or error)
+4. Flash message to user
+5. Redirect or render
 
 ```python
-# correct: route calls class method, does nothing else
-def forward_to_ygk(application_id):
-    ok, msg = _svc().forward_to_ygk(application_id)
-    flash(msg, "success" if ok else "error")
-    return redirect(url_for("dean_api.check_applicants"))
+# Correct pattern (all routes follow this):
+@applicant_api.route("/submit-documents", methods=["POST"])
+@require_login
+def submit_documents():
+    service = get_application_service(session["user_id"])
+    result = service.submit_application(request.form, request.files)
+    
+    if result.success:
+        flash("Application submitted successfully.", "success")  # Static message
+    else:
+        flash(result.error_msg, "error")  # Error already formatted by business layer
+    
+    return redirect(url_for("applicant_api.submit_documents"))
 ```
 
-- **Do not put DB queries or status logic in routes.**
-- Each route file has a `_svc()` helper that instantiates the role class from session.
-- `dashboard.py` uses `_get_role_data(role_slug, user_id, email)` to delegate data loading to the right class.
+**Route Rules**:
+- ❌ NO business logic, NO database queries, NO file processing
+- ✅ Call service/class method and handle OperationResult
+- ✅ Display static success messages (hardcoded, not extracted from result.data)
+- ✅ Display error messages from result.error_msg (already formatted by business layer)
+- ✅ Never use isinstance checks (result.data type is guaranteed by OperationResult contract)
 
-### `models/` — Data Shape Only
-SQLAlchemy ORM models (`User`, `Application`, `ApplicationDocument`). They define columns, relationships, and password hashing. No business logic lives here.
+### Layer 2: `services/` — Business Orchestration (NEW - Phase 2)
+Services orchestrate business operations by:
+1. Validating inputs
+2. Calling business classes and repositories
+3. Handling errors with specific ErrorCodes
+4. Returning OperationResult[T] with typed data
+
+Services are instantiated per request with user context and are NOT directly used by routes — routes call services.
+
+```python
+# Service example (ApplicationService):
+class ApplicationService(BaseService):
+    def submit_application(self, form_data, files):
+        # Validate
+        parsed = self.parse_form_data(form_data)
+        error = self.validate_form_data(parsed)
+        if error:
+            return error
+        
+        # Delegate to class
+        applicant = Applicant(self.user_id, self.email)
+        return applicant.submit(parsed, files)  # Returns OperationResult
+```
+
+**Service Rules**:
+- ✅ Return ALL methods as OperationResult[T]
+- ✅ Use specific ErrorCodes (VALIDATION_FAILED, NOT_FOUND, etc.)
+- ✅ Provide user-friendly error messages in result.error_msg
+- ✅ Return business objects in result.data (Application, Document, User)
+- ❌ NO exception throwing (use ErrorCode instead)
+
+### Layer 3: `classes/` — Domain Logic (Phase 1)
+Role classes (`Applicant`, `DeanOffice`, `Oidb`, etc.) implement domain rules:
+- State transitions (can only forward if status is correct)
+- Business validations (GPA ranges, document requirements)
+- Data mutations (forward application, mark as reviewed)
+
+All access to data goes through repositories (ApplicationRepository, etc.).
+
+```python
+# Class example (role method):
+class Oidb(User):
+    def return_application(self, application_id, notes):
+        app_repo = get_application_repository()
+        
+        # Get application
+        result = app_repo.find_by_id(application_id)
+        if not result.success:
+            return result
+        
+        app = result.data
+        if app.status != "forwarded_to_oidb":
+            return OperationResult.error(
+                ErrorCode.INVALID_STATUS_TRANSITION,
+                f"Cannot return application in status '{app.status}'"
+            )
+        
+        # Update and commit via repository
+        app.status = "returned"
+        app.return_notes = notes
+        return app_repo.update(app)  # Returns OperationResult with Application
+```
+
+**Class Rules**:
+- ✅ ALL methods return OperationResult[T]
+- ✅ Instantiated per request with user context: `Oidb(user_id, email, "oidb")`
+- ✅ Use repositories for ALL data access (no direct db.session)
+- ✅ Return business objects in result.data (Application, Document lists, etc.)
+- ❌ NO direct db.session, NO exception throwing
+
+### Layer 4: `database/` — Data Access (Phase 1)
+Repositories provide typed methods returning OperationResult:
+
+```python
+# Repository example (ApplicationRepository):
+class ApplicationRepository:
+    def find_by_id(self, app_id) -> OperationResult[Application]:
+        try:
+            app = Application.query.get(app_id)
+            if not app:
+                return OperationResult.error(ErrorCode.NOT_FOUND, "Application not found")
+            return OperationResult.ok(data=app)
+        except Exception as e:
+            return OperationResult.error(ErrorCode.DB_ERROR, str(e))
+```
+
+**Repository Rules**:
+- ✅ ALL methods return OperationResult[T]
+- ✅ Typed return: result.data is Application/Document/list, never None for success
+- ✅ Use specific ErrorCodes for each failure mode
+- ✅ Only place where db.session is used directly
+
+### Layer 5: `models/` — Data Shape (No Logic)
+SQLAlchemy ORM models define columns, relationships, and basic serialization. NO business logic.
+
+---
+
+## The OperationResult Contract (Phase 2 CRITICAL)
+
+Every method in services, classes, and repositories returns OperationResult with this contract:
+
+```python
+@dataclass
+class OperationResult(Generic[T]):
+    success: bool          # True if operation succeeded
+    data: T | None         # Business object (Application, Document, User, list)
+    error_code: ErrorCode | None
+    error_msg: str         # User-friendly message, always set on error
+```
+
+**Contract Rules**:
+1. **SUCCESS PATH**: `OperationResult.ok(data=business_object)`
+   - `success = True`
+   - `data = Application | Document | list | User` (NEVER dict with message)
+   - `error_code = None`
+   - Routes display static message, may use result.data for business logic
+
+2. **ERROR PATH**: `OperationResult.error(ErrorCode.SPECIFIC, "user message")`
+   - `success = False`
+   - `data = None`
+   - `error_code = ErrorCode.SPECIFIC` (VALIDATION_FAILED, NOT_FOUND, DB_ERROR, etc.)
+   - `error_msg = "User-friendly message"` — already formatted, ready to flash
+
+**Anti-Patterns (Will be caught in code review)**:
+```python
+# ❌ WRONG: Wrapping data with message dict
+return OperationResult.ok(data={"message": "Success", "app": app})
+
+# ❌ WRONG: Bare exceptions instead of ErrorCode
+try:
+    ...
+except Exception:
+    raise  # Should return OperationResult.error() instead
+
+# ❌ WRONG: Routes extracting message from Application object
+result = service.return_application(app_id, notes)
+if result.success:
+    msg = result.data.get("message")  # Application has no .get()!
+    flash(msg, "success")
+
+# ❌ WRONG: isinstance checks in routes
+if isinstance(result.data, dict):
+    msg = result.data.get("message")
+else:
+    msg = "default"
+flash(msg, "success")
+```
+
+**Correct Pattern (All routes must follow)**:
+```python
+result = service.operation(args)
+if result.success:
+    flash("Static message", "success")  # NOT extracted
+    # Optionally use result.data for business logic
+    app = result.data  # Type-safe, guaranteed to be Application or None
+else:
+    flash(result.error_msg, "error")  # Error message already formatted
+```
 
 ---
 

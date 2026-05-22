@@ -1,7 +1,7 @@
 # Refactoring Phases - Central Tracking
 
-**Last Updated**: May 22, 2026  
-**Current Phase**: 2 (Service Layer)
+**Last Updated**: May 23, 2026  
+**Current Phase**: 2 (Service Layer) ✅ COMPLETE
 
 ## Phase Overview
 
@@ -18,40 +18,58 @@ This is the SINGLE SOURCE OF TRUTH for refactoring phases. Each directory's `.AG
 - All role classes now use ApplicationRepository instead of direct db.session
 - Fixed critical architectural issue: database switching now possible without code changes
 
-### Phase 2: Service Layer 🔄 IN PROGRESS
-**Goal**: Thin HTTP routes by moving business logic to services  
-**Deliverables**:
-- [ ] Create `app/services/` directory with service classes
-- [ ] ApplicationService wraps application operations
-- [ ] UserService wraps user operations
-- [ ] Routes delegate to services instead of direct class calls
-- [ ] Error handling with OperationResult and toast messages
+### Phase 2: Service Layer & OperationResult Contract ✅ COMPLETE (May 23, 2026)
 
-**Example Pattern**:
+**Goal**: Thin HTTP routes by moving business logic to services and establish consistent OperationResult contract  
+
+**Completed Deliverables**:
+- [x] Created `app/services/` directory with BaseService, ApplicationService, AuthService, UserService
+- [x] ApplicationService wraps application operations (submit, resubmit, cancel, get)
+- [x] AuthService wraps authentication (login, register, password_reset)
+- [x] All routes delegate to services instead of direct class calls
+- [x] Error handling with OperationResult and error-toasts (red notifications from top)
+- [x] **OperationResult Contract Standardized**: Business classes return Application/Document objects in result.data; routes display static success messages (not extracted from data)
+
+**OperationResult Contract (CRITICAL)**:
 ```python
-# routes/applicant.py - AFTER Phase 2
-result = get_applicant_service(session["user_id"]).submit(form, files)
+# All methods follow this pattern:
+result = service.operation(args)
+
+# SUCCESS: Business returns Application model in result.data
 if result.success:
-    flash(result.data.get("message"), "success")
+    # Route displays static message (NOT extracted from data)
+    flash("Operation succeeded", "success")
+    # Route may use result.data for business logic (e.g., show details)
+    detail = result.data  # Application model
+
+# ERROR: Business returns ErrorCode and message in OperationResult
 else:
+    # Error message is already formatted by business layer
     flash(result.error_msg, "error")  # Toast appears automatically
 ```
+
+**Key Fix Applied**: Removed ALL isinstance(result.data, dict) workarounds from routes (applicant, dean, oidb, ydyo, ygk). Routes no longer try to extract messages from Application objects — error messages come from result.error_msg.
+
+**Files Updated**:
+- ✅ All 5 route files: removed isinstance checks, use static success messages
+- ✅ ApplicationService: removed message dict wrapping (violates OperationResult design)
+- ✅ All service files compile and Flask app initializes successfully
 
 ### Phase 3: Refactor Other Classes 🔲 NOT STARTED
 **Goal**: Apply repository pattern to other entities (Document, Intibak, etc.)  
 **Note**: Skip users.py - already done in Phase 1
+**Blocker**: None - Phase 2 is complete, can start anytime
 
-### Phase 4: Refactor Routes 🔲 NOT STARTED
-**Goal**: Make routes thin HTTP layer only  
-**Current State**: Routes contain business logic, form parsing, database calls  
-**Blockers**: Requires Phase 2 (services) to be complete first  
-**Warning**: Routes will break temporarily until Phase 2 services exist
-
-### Phase 5: Refactor Models 🔲 NOT STARTED
+### Phase 4: Refactor Models 🔲 NOT STARTED
 **Goal**: Add validation, timestamps, and proper ORM setup  
 **Tasks**: Add created_at, updated_at, validators, relationships
+**Blocker**: Can start after Phase 3 or independently
 
-## Critical Constraints
+### Phase 5: Testing & Integration 🔲 NOT STARTED
+**Goal**: Add unit tests, integration tests, and e2e test coverage  
+**Dependency**: All business logic phases complete
+
+## Critical Constraints (Phase 2 Complete)
 
 ### Database Abstraction (Phase 1+ Requirement)
 - ❌ NO direct `db.session` in business classes
@@ -61,11 +79,30 @@ else:
 ### Return Types (Phase 0+ Requirement)
 - ❌ NO bare `bool`, `tuple[bool, str]`, or `None` returns
 - ✅ ALL methods return OperationResult with success/error_code/data/error_msg
+- ✅ result.data contains business objects (Application, Document, User), not dict messages
 
 ### Error Handling (Phase 2 Requirement)
 - ❌ NO silent failures (returning None without explanation)
+- ❌ NO isinstance checks in routes — result.data type is guaranteed by OperationResult contract
+- ❌ NO message extraction from result.data (e.g., `result.data.get("message")` is WRONG)
 - ✅ All errors have specific ErrorCode (not generic DB_ERROR when VALIDATION_FAILED is better)
-- ✅ Flash messages display error_msg to user as red toast
+- ✅ All error messages in result.error_msg — formatted by business layer, displayed as red toast
+- ✅ Routes use static success messages (hardcoded in route layer)
+
+### Route Pattern (Phase 2 Requirement)
+```python
+# CORRECT Pattern - ALL routes follow this:
+result = service.operation(args)
+if result.success:
+    flash("Static message here", "success")  # NOT extracted from result.data
+else:
+    flash(result.error_msg, "error")  # Error message already formatted
+
+# WRONG Patterns (will be caught in code review):
+# ❌ flash(result.data.get("message"), "success")  # Application has no .get()
+# ❌ if isinstance(result.data, dict): ...  # Violates contract
+# ❌ try: ... except: ...  # Should use OperationResult instead
+```
 
 ## File Structure After Phase 2
 
