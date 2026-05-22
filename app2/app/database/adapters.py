@@ -88,6 +88,13 @@ class SQLAlchemyUserDataService(UserDataInterface):
             {'email': email, 'role': role},
         )
 
+    def find_by_email_and_role(self, email: str, role: str):
+        """Find user by email and role (required by UserDataInterface)."""
+        return self.database_adapter.safe_execute(
+            'find_user_by_email_role',
+            {'email': email, 'role': role},
+        )
+
     def create_user(self, email, password, role, check_user_validity: bool = True):
         return self.database_adapter.safe_execute(
             'create_user',

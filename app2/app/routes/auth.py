@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
-from ..classes.auth import AuthClass
+from ..services.auth_service import AuthService
 from ..config import ROLE_DEFINITIONS
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -27,6 +27,7 @@ def _redirect_if_authenticated():
 
 
 def _set_session(user) -> None:
+    """Store user info in session."""
     session["user_id"] = user.id
     session["user_email"] = user.email
     session["user_role"] = user.role
@@ -76,20 +77,23 @@ def applicant_register():
     if already_authenticated:
         return already_authenticated
 
-    auth_service = AuthClass()
+    service = AuthService()
 
     if request.method == "POST":
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""
+        password_confirm = request.form.get("password_confirm") or ""
 
-        valid, msg = auth_service.validate_credentials(email, password)
-        if not valid:
-            flash(msg)
+        # Validate credentials format
+        result = service.validate_credentials(email, password)
+        if not result.success:
+            flash(result.error_msg, "error")
             return redirect(url_for("auth.applicant_register"))
 
-        user = auth_service.register_user(email=email, password=password, role="applicant", check_user_validity=True)
-        if user is None:
-            flash("Email already exists for applicant role.")
+        # Register user
+        result = service.register(email, password, password_confirm, role="applicant", check_validity=True)
+        if not result.success:
+            flash(result.error_msg, "error")
             return redirect(url_for("auth.applicant_register"))
 
         flash("Registration successful. Please login.", "success")
@@ -114,22 +118,26 @@ def applicant_login():
     if already_authenticated:
         return already_authenticated
 
-    auth_service = AuthClass()
+    service = AuthService()
 
     if request.method == "POST":
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""
 
-        valid, msg = auth_service.validate_credentials(email, password)
-        if not valid:
-            flash(msg)
+        # Validate credentials format
+        result = service.validate_credentials(email, password)
+        if not result.success:
+            flash(result.error_msg, "error")
             return redirect(url_for("auth.applicant_login"))
 
-        user = auth_service.authenticate_user(email=email, password=password, role="applicant")
-        if user is None:
-            flash("Invalid credentials.")
+        # Authenticate user
+        result = service.login(email, password, role="applicant")
+        if not result.success:
+            flash(result.error_msg, "error")
             return redirect(url_for("auth.applicant_login"))
 
+        # Set session
+        user = result.data
         _set_session(user)
         return redirect(url_for("dashboard.index"))
 
@@ -152,21 +160,29 @@ def staff_register():
     if already_authenticated:
         return already_authenticated
 
-    auth_service = AuthClass()
+    service = AuthService()
 
     if request.method == "POST":
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""
+        password_confirm = request.form.get("password_confirm") or ""
         role = request.form.get("role") or ""
 
-        valid, msg = auth_service.validate_credentials(email, password, role=role, valid_roles=_STAFF_SLUGS)
-        if not valid:
-            flash(msg)
+        # Validate role
+        if role not in _STAFF_SLUGS:
+            flash("Invalid role selected.", "error")
             return redirect(url_for("auth.staff_register"))
 
-        user = auth_service.register_user(email=email, password=password, role=role, check_user_validity=True)
-        if user is None:
-            flash("Email already exists for selected role.")
+        # Validate credentials format
+        result = service.validate_credentials(email, password)
+        if not result.success:
+            flash(result.error_msg, "error")
+            return redirect(url_for("auth.staff_register"))
+
+        # Register user
+        result = service.register(email, password, password_confirm, role=role, check_validity=True)
+        if not result.success:
+            flash(result.error_msg, "error")
             return redirect(url_for("auth.staff_register"))
 
         flash("Registration successful. Please login.", "success")
@@ -192,23 +208,32 @@ def staff_login():
     if already_authenticated:
         return already_authenticated
 
-    auth_service = AuthClass()
+    service = AuthService()
 
     if request.method == "POST":
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""
         role = request.form.get("role") or ""
 
-        valid, msg = auth_service.validate_credentials(email, password, role=role, valid_roles=_STAFF_SLUGS)
-        if not valid:
-            flash(msg)
+        # Validate role
+        if role not in _STAFF_SLUGS:
+            flash("Invalid role selected.", "error")
             return redirect(url_for("auth.staff_login"))
 
-        user = auth_service.authenticate_user(email=email, password=password, role=role)
-        if user is None:
-            flash("Invalid credentials.")
+        # Validate credentials format
+        result = service.validate_credentials(email, password)
+        if not result.success:
+            flash(result.error_msg, "error")
+            return redirect(url_for("auth.staff_login"))
+
+        # Authenticate user
+        result = service.login(email, password, role=role)
+        if not result.success:
+            flash(result.error_msg, "error")
             return redirect(url_for("auth.staff_login", role=role))
 
+        # Set session
+        user = result.data
         _set_session(user)
         return redirect(url_for("dashboard.index"))
 

@@ -42,7 +42,7 @@ def _get_role_data(role_slug: str, user_id: int, email: str) -> dict:
         return {"dean_applications": DeanOffice(user_id, email, "dean").get_pending_applicants()}
 
     if role_slug == "ydyo":
-        from ..classes.users import Ydyo
+        from ..classes import Ydyo
         return {"ydyo_applications": Ydyo(user_id, email, "ydyo").get_applications()}
 
     return {}

@@ -102,19 +102,39 @@ button:active, .soft-btn:active { transform: translateY(0); }
 .danger-btn { background: var(--danger) !important; }
 .danger-btn:hover { background: #b91c1c !important; }
 
-/* ── Flash messages ── */
+/* ── Toast/Flash messages (appears from top) ── */
 .flash-wrap {
-    margin: 0 0 12px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    pointer-events: none;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
+    padding: 12px 24px;
 }
 
 .flash-msg {
-    padding: 10px 16px;
+    padding: 12px 16px;
     border-radius: 8px;
     font-weight: 600;
     font-size: 14px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    pointer-events: auto;
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
 }
 
 .flash-message,

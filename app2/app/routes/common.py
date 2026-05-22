@@ -13,7 +13,7 @@ def login_required(view_func):
     @wraps(view_func)
     def wrapped(*args, **kwargs):
         if "user_id" not in session:
-            flash("Please login first.")
+            flash("Please login first.", "error")
             return redirect(url_for("auth.login"))
         return view_func(*args, **kwargs)
 
@@ -28,7 +28,7 @@ def role_required(role_slug: str):
         @login_required
         def wrapped(*args, **kwargs):
             if session.get("user_role") != role_slug:
-                flash("You are not authorized to access this area.")
+                flash("You are not authorized to access this area.", "error")
                 return redirect(url_for("dashboard.index"))
             return view_func(*args, **kwargs)
 
