@@ -89,6 +89,95 @@ class IUserRepository(ABC):
         """
 
 
+class IApplicationRepository(ABC):
+    """
+    Application persistence interface (high-level application operations).
+
+    Wraps database operations for finding/creating/managing applications.
+    All methods return OperationResult with error codes.
+    """
+
+    @abstractmethod
+    def find_by_id(self, application_id: int) -> OperationResult:
+        """
+        Find application by ID.
+
+        Returns OperationResult with Application data or NOT_FOUND error.
+        """
+
+    @abstractmethod
+    def update(self, application: Any) -> OperationResult:
+        """
+        Update entire application object and commit.
+
+        Returns OperationResult with updated Application or error.
+        """
+
+    @abstractmethod
+    def add_to_session(self, application: Any) -> OperationResult:
+        """
+        Add application to session without committing (for batch operations).
+
+        Returns OperationResult or error.
+        """
+
+    @abstractmethod
+    def commit() -> OperationResult:
+        """
+        Commit pending changes to database.
+
+        Returns OperationResult or error.
+        """
+
+    @abstractmethod
+    def rollback() -> OperationResult:
+        """
+        Rollback pending changes.
+
+        Returns OperationResult or error.
+        """
+
+    @abstractmethod
+    def get_by_status(self, status: str) -> OperationResult:
+        """
+        Get all applications with a specific status.
+
+        Returns OperationResult with list of Applications or error.
+        """
+
+    @abstractmethod
+    def get_document(self, doc_id: int) -> OperationResult:
+        """
+        Get document by ID.
+
+        Returns OperationResult with ApplicationDocument or DOCUMENT_NOT_FOUND error.
+        """
+
+    @abstractmethod
+    def add_document(self, document: Any) -> OperationResult:
+        """
+        Add a single document to session without committing.
+
+        Returns OperationResult or error.
+        """
+
+    @abstractmethod
+    def add_documents(self, documents: list[Any]) -> OperationResult:
+        """
+        Add multiple documents to session without committing.
+
+        Returns OperationResult or error.
+        """
+
+    @abstractmethod
+    def delete_document(self, document: Any) -> OperationResult:
+        """
+        Delete a single document from session without committing.
+
+        Returns OperationResult or error.
+        """
+
+
 # Legacy aliases (deprecated, kept for backward compatibility during migration)
 DatabaseInterface = ILowLevelDatabase
 DatabaseControlInterface = IHighLevelDatabase

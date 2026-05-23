@@ -124,8 +124,6 @@ class Applicant(User, IDocumentHandler):
         self, form_data: dict, upload_root, files, document_slots
     ) -> OperationResult:
         """Submit new application. Returns OperationResult with created Application."""
-        from ... import db
-
         app_repo = get_application_repository()
 
         # Check if applicant already has an application
@@ -153,11 +151,14 @@ class Applicant(User, IDocumentHandler):
             root = Path(upload_root)
             root.mkdir(parents=True, exist_ok=True)
 
-            # Save documents
-            for doc in self.save_documents(
+            # Save documents and add to repository
+            docs = self.save_documents(
                 application.id, root, files, document_slots
-            ):
-                db.session.add(doc)
+            )
+            add_docs_result = app_repo.add_documents(docs)
+            if not add_docs_result.success:
+                app_repo.rollback()
+                return add_docs_result
 
             # Commit all changes
             commit_result = app_repo.commit()
@@ -188,8 +189,6 @@ class Applicant(User, IDocumentHandler):
         self, application, form_data: dict, upload_root, files, document_slots
     ) -> OperationResult:
         """Resubmit application. Returns OperationResult."""
-        from ... import db
-
         app_repo = get_application_repository()
 
         try:
@@ -202,16 +201,21 @@ class Applicant(User, IDocumentHandler):
             # Delete old documents
             old_docs = list(application.documents)
             for old_doc in old_docs:
-                db.session.delete(old_doc)
-            db.session.flush()
+                del_result = app_repo.delete_document(old_doc)
+                if not del_result.success:
+                    app_repo.rollback()
+                    return del_result
 
             # Save new documents
             root = Path(upload_root)
             root.mkdir(parents=True, exist_ok=True)
-            for doc in self.save_documents(
+            docs = self.save_documents(
                 application.id, root, files, document_slots
-            ):
-                db.session.add(doc)
+            )
+            add_docs_result = app_repo.add_documents(docs)
+            if not add_docs_result.success:
+                app_repo.rollback()
+                return add_docs_result
 
             # Commit all changes
             commit_result = app_repo.commit()

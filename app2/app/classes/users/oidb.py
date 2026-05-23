@@ -6,7 +6,6 @@ from typing import Any
 
 from ...core import OperationResult, ErrorCode
 from ...database import get_application_repository
-from ...models import ApplicationDocument
 from ..interfaces import IReviewer, IDocumentHandler
 from .base import User
 
@@ -62,8 +61,6 @@ class Oidb(User, IReviewer, IDocumentHandler):
 
     def forward_all_to_ydyo(self) -> OperationResult:
         """Forward all submitted applications to YDYO. Returns OperationResult."""
-        from ... import db
-
         app_repo = get_application_repository()
 
         try:
@@ -75,10 +72,13 @@ class Oidb(User, IReviewer, IDocumentHandler):
             apps = result.data or []
             count = len(apps)
 
-            # Update all
+            # Update all using repository
             for app in apps:
                 app.status = "forwarded_to_ydyo"
-                db.session.merge(app)
+                add_result = app_repo.add_to_session(app)
+                if not add_result.success:
+                    app_repo.rollback()
+                    return add_result
 
             # Commit all changes
             commit_result = app_repo.commit()
@@ -134,19 +134,8 @@ class Oidb(User, IReviewer, IDocumentHandler):
 
     def get_document(self, doc_id: int) -> OperationResult:
         """Get document. Returns OperationResult."""
-        try:
-            doc = ApplicationDocument.query.get(doc_id)
-            if not doc:
-                return OperationResult.error(
-                    ErrorCode.DOCUMENT_NOT_FOUND,
-                    f"Document {doc_id} not found."
-                )
-            return OperationResult.ok(data=doc)
-        except Exception as exc:
-            return OperationResult.error(
-                ErrorCode.DB_ERROR,
-                f"Failed to retrieve document: {str(exc)}"
-            )
+        app_repo = get_application_repository()
+        return app_repo.get_document(doc_id)
 
     def upload(self, payload: dict[str, Any]) -> OperationResult:
         """Upload document. Returns OperationResult."""

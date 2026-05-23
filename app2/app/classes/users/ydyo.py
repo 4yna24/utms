@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from ...core import OperationResult, ErrorCode
 from ...database import get_application_repository
-from ...models import ApplicationDocument
 from ..interfaces import IReviewer
 from .base import User
 
@@ -35,19 +34,8 @@ class Ydyo(User, IReviewer):
 
     def get_document(self, doc_id: int) -> OperationResult:
         """Get document. Returns OperationResult."""
-        try:
-            doc = ApplicationDocument.query.get(doc_id)
-            if not doc:
-                return OperationResult.error(
-                    ErrorCode.DOCUMENT_NOT_FOUND,
-                    f"Document {doc_id} not found."
-                )
-            return OperationResult.ok(data=doc)
-        except Exception as exc:
-            return OperationResult.error(
-                ErrorCode.DB_ERROR,
-                f"Failed to retrieve document: {str(exc)}"
-            )
+        app_repo = get_application_repository()
+        return app_repo.get_document(doc_id)
 
     _VALID_PREP_STATUSES = {"eligible", "needs_test"}
 

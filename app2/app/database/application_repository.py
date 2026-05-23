@@ -198,3 +198,69 @@ class ApplicationRepository:
                 ErrorCode.DB_ERROR,
                 f"Failed to fetch applications: {str(exc)}"
             )
+
+    @staticmethod
+    def add_to_session(application: Application) -> OperationResult:
+        """Add application to session without committing (for batch operations)."""
+        try:
+            db.session.merge(application)
+            return OperationResult.ok()
+        except Exception as exc:
+            return OperationResult.error(
+                ErrorCode.DB_ERROR,
+                f"Failed to add application to session: {str(exc)}"
+            )
+
+    @staticmethod
+    def get_document(doc_id: int) -> OperationResult:
+        """Get document by ID."""
+        try:
+            doc = ApplicationDocument.query.get(doc_id)
+            if not doc:
+                return OperationResult.error(
+                    ErrorCode.DOCUMENT_NOT_FOUND,
+                    f"Document {doc_id} not found."
+                )
+            return OperationResult.ok(data=doc)
+        except Exception as exc:
+            return OperationResult.error(
+                ErrorCode.DB_ERROR,
+                f"Failed to retrieve document: {str(exc)}"
+            )
+
+    @staticmethod
+    def add_document(document: ApplicationDocument) -> OperationResult:
+        """Add a single document to session without committing."""
+        try:
+            db.session.add(document)
+            return OperationResult.ok()
+        except Exception as exc:
+            return OperationResult.error(
+                ErrorCode.DB_ERROR,
+                f"Failed to add document to session: {str(exc)}"
+            )
+
+    @staticmethod
+    def add_documents(documents: list[ApplicationDocument]) -> OperationResult:
+        """Add multiple documents to session without committing."""
+        try:
+            for doc in documents:
+                db.session.add(doc)
+            return OperationResult.ok()
+        except Exception as exc:
+            return OperationResult.error(
+                ErrorCode.DB_ERROR,
+                f"Failed to add documents to session: {str(exc)}"
+            )
+
+    @staticmethod
+    def delete_document(document: ApplicationDocument) -> OperationResult:
+        """Delete a single document from session without committing."""
+        try:
+            db.session.delete(document)
+            return OperationResult.ok()
+        except Exception as exc:
+            return OperationResult.error(
+                ErrorCode.DB_ERROR,
+                f"Failed to delete document: {str(exc)}"
+            )
