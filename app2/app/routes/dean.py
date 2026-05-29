@@ -47,7 +47,7 @@ def forward_to_ygk(application_id):
     else:
         flash(result.error_msg, "error")
     
-    return redirect(url_for("dean_api.check_applicants"))
+    return redirect(url_for("dashboard.index", tab="receive-forward-applications"))
 
 
 @dean_api_bp.route("/forward-all-to-ygk", methods=["POST"])
@@ -63,4 +63,4 @@ def forward_all_to_ygk():
     else:
         flash(result.error_msg, "error")
     
-    return redirect(url_for("dean_api.check_applicants"))
+    return redirect(url_for("dashboard.index", tab="receive-forward-applications"))

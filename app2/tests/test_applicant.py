@@ -1,87 +1,70 @@
-"""Applicant workflow tests."""
+"""Applicant workflow and access tests."""
 
 import pytest
 
 
-class TestApplicantDashboard:
-    """Test applicant dashboard access."""
-
-    def test_dashboard_redirects_unauthenticated(self, client):
-        """Test unauthenticated users are redirected from dashboard."""
+class TestApplicantAccess:
+    def test_dashboard_blocked_unauthenticated(self, client):
         resp = client.get("/dashboard/", follow_redirects=False)
         assert resp.status_code == 302
         assert "login" in resp.location.lower() or "auth" in resp.location.lower()
 
-    def test_dashboard_accessible_for_applicant(self, auth_client_applicant):
-        """Test authenticated applicant can access dashboard."""
-        resp = auth_client_applicant.get("/dashboard/")
-        assert resp.status_code == 200
+    def test_dashboard_accessible(self, auth_client_applicant):
+        assert auth_client_applicant.get("/dashboard/").status_code == 200
 
-    def test_applicant_application_tracking(self, auth_client_applicant):
-        """Test applicant can access application tracking."""
-        resp = auth_client_applicant.get("/api/applicant/track-application")
-        # Should return 200 OK
-        assert resp.status_code in [200, 404]  # 404 if no app, 200 if successful
-
-
-class TestApplicantWorkflow:
-    """Test full applicant workflow."""
-
-    def test_applicant_can_submit_form_data(self, auth_client_applicant, applicant_user):
-        """Test applicant form submission flow."""
-        data = {
-            "id_number": "123456789",
-            "first_name": "John",
-            "last_name": "Doe",
-            "target_program": "Computer Engineering",
-            "target_semester": "Fall 2024",
-            "is_currently_enrolled": False
-        }
-        resp = auth_client_applicant.post(
-            "/api/applicant/submit",
-            json=data
-        )
-        # Should return success or bad request (route may not exist yet)
-        assert resp.status_code in [200, 201, 400, 404]
-
-    def test_applicant_cannot_access_other_roles(self, auth_client_applicant):
-        """Test applicant cannot access dean-only routes."""
-        resp = auth_client_applicant.get("/api/dean/forward-to-ygk", follow_redirects=False)
-        # Should be redirected or forbidden
-        assert resp.status_code in [302, 403, 404]
-
-    def test_applicant_draft_application(self, auth_client_applicant, application_draft):
-        """Test applicant can interact with draft application."""
-        resp = auth_client_applicant.get("/dashboard/")
-        assert resp.status_code == 200
-
-
-class TestApplicationStatusTransitions:
-    """Test application status workflow."""
-
-    def test_application_moves_to_submitted(self, auth_client_applicant, applicant_user):
-        """Test application can transition to submitted status."""
-        # This test checks the workflow - actual endpoint may vary
-        resp = auth_client_applicant.get("/api/applicant/track-application")
-        assert resp.status_code in [200, 404]
-
-    def test_applicant_can_view_submitted_application(self, auth_client_applicant, application_submitted):
-        """Test applicant can view submitted application."""
-        resp = auth_client_applicant.get("/dashboard/")
-        assert resp.status_code == 200
-
-
-class TestDocumentHandling:
-    """Test applicant document upload/handling."""
-
-    def test_applicant_can_submit_documents(self, auth_client_applicant):
-        """Test document submission endpoint exists."""
+    def test_submit_documents_page_get(self, auth_client_applicant):
         resp = auth_client_applicant.get("/api/applicant/submit-documents")
-        # Endpoint should exist (even if it returns 405 for GET)
-        assert resp.status_code in [200, 405, 404]
-
-    def test_document_upload_form(self, auth_client_applicant):
-        """Test document upload is available."""
-        # Check if upload endpoint exists
-        resp = auth_client_applicant.get("/dashboard/")
         assert resp.status_code == 200
+
+    def test_track_application_endpoint(self, auth_client_applicant):
+        resp = auth_client_applicant.get("/api/applicant/track-application")
+        assert resp.status_code == 200
+
+    def test_applicant_cannot_access_oidb_check(self, auth_client_applicant):
+        resp = auth_client_applicant.get("/api/oidb/check-documents", follow_redirects=False)
+        assert resp.status_code == 302
+
+    def test_applicant_cannot_access_dean_check(self, auth_client_applicant):
+        resp = auth_client_applicant.get("/api/dean/check-applicants", follow_redirects=False)
+        assert resp.status_code == 302
+
+
+class TestApplicantTabContent:
+    def test_track_tab_loads(self, auth_client_applicant):
+        resp = auth_client_applicant.get("/dashboard/tab/track-application")
+        assert resp.status_code == 200
+        assert b"application" in resp.data.lower() or b"submit" in resp.data.lower()
+
+    def test_submit_tab_loads(self, auth_client_applicant):
+        resp = auth_client_applicant.get("/dashboard/tab/submit-application")
+        assert resp.status_code == 200
+
+    def test_track_tab_with_application(self, auth_client_applicant, application_submitted):
+        resp = auth_client_applicant.get("/dashboard/tab/track-application")
+        assert resp.status_code == 200
+        assert b"submitted" in resp.data.lower() or b"application" in resp.data.lower()
+
+
+class TestApplicantSubmission:
+    def test_submit_redirects_unauthenticated(self, client):
+        resp = client.post("/api/applicant/submit-documents", follow_redirects=False)
+        assert resp.status_code == 302
+
+    def test_cancel_redirects_unauthenticated(self, client):
+        resp = client.post("/api/applicant/cancel-application", follow_redirects=False)
+        assert resp.status_code == 302
+
+    def test_cancel_when_no_application(self, auth_client_applicant):
+        resp = auth_client_applicant.post(
+            "/api/applicant/cancel-application",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+
+    def test_resubmit_requires_returned_status(self, auth_client_applicant, application_submitted):
+        # application_submitted has status="submitted", not "returned" — should be rejected
+        resp = auth_client_applicant.post(
+            "/api/applicant/resubmit-application",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302

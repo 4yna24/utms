@@ -48,7 +48,7 @@ def forward_to_ydyo(application_id):
     else:
         flash(result.error_msg, "error")
     
-    return redirect(url_for("oidb_api.check_documents"))
+    return redirect(url_for("dashboard.index", tab="check-documents"))
 
 
 @oidb_api_bp.route("/forward-all-to-ydyo", methods=["POST"])
@@ -64,7 +64,7 @@ def forward_all_to_ydyo():
     else:
         flash(result.error_msg, "error")
     
-    return redirect(url_for("oidb_api.check_documents"))
+    return redirect(url_for("dashboard.index", tab="check-documents"))
 
 
 @oidb_api_bp.route("/return-application/<int:application_id>", methods=["POST"])
@@ -81,7 +81,20 @@ def return_application(application_id):
     else:
         flash(result.error_msg, "error")
     
-    return redirect(url_for("oidb_api.check_documents"))
+    return redirect(url_for("dashboard.index", tab="check-documents"))
+
+
+@oidb_api_bp.route("/cancel-forward-to-ydyo/<int:application_id>", methods=["POST"])
+@role_required("oidb")
+def cancel_forward_to_ydyo(application_id):
+    """Cancel the forward-to-YDYO decision, reverting the application to submitted."""
+    service = _get_service()
+    result = service.cancel_forward_to_ydyo(application_id)
+    if result.success:
+        flash("Forward to YDYO cancelled. Application reverted to submitted status.", "success")
+    else:
+        flash(result.error_msg, "error")
+    return redirect(url_for("dashboard.index", tab="check-documents"))
 
 
 @oidb_api_bp.route("/view-document/<int:doc_id>", methods=["GET"])

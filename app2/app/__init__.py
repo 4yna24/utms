@@ -75,7 +75,7 @@ def _ensure_application_new_columns():
             if col_name not in column_names:
                 conn.execute(text(f'ALTER TABLE "application" ADD COLUMN {col_name} {col_def}'))
 
-def create_app():
+def create_app(test_config: dict | None = None):
     app = Flask(__name__)
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "utms-1234")
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///project.db"
@@ -84,6 +84,9 @@ def create_app():
     app.config["DEPLOY_WEBHOOK_SECRET"] = os.environ.get("DEPLOY_WEBHOOK_SECRET", "")
     app.config["DEPLOY_WEBHOOK_COMMAND"] = os.environ.get("DEPLOY_WEBHOOK_COMMAND", "")
     app.config["DEPLOY_WEBHOOK_TIMEOUT"] = int(os.environ.get("DEPLOY_WEBHOOK_TIMEOUT", "300"))
+
+    if test_config:
+        app.config.update(test_config)
 
     db.init_app(app)
     from .database import init_database_interfaces

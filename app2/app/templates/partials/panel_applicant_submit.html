@@ -2,7 +2,7 @@
 {% set allow_form = (not app) or (app and app.status == 'returned' and resubmission_allowed) %}
 {% set form_action = url_for('applicant_api.resubmit_application') if (app and app.status == 'returned') else url_for('applicant_api.create_application') %}
 
-{% if not tab.period_open %}
+{% if not period_open %}
     <div class="info-box warning">Application submission period is currently closed.</div>
 
 {% elif app and app.status not in ('returned',) %}

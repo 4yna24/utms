@@ -1,9 +1,9 @@
 {% if dean_applications %}
     <div class="oidb-header-bar">
         <div class="stats-row" data-filter-table="dean-table">
-            <span class="stat-chip chip-total" data-filter="all">Total: {{ dean_applications|length }}</span>
-            <span class="stat-chip chip-submitted" data-filter="forwarded_to_dean">Pending: {{ dean_applications|selectattr('status','eq','forwarded_to_dean')|list|length }}</span>
-            <span class="stat-chip chip-forwarded" data-filter="forwarded_to_ygk">Forwarded: {{ dean_applications|selectattr('status','eq','forwarded_to_ygk')|list|length }}</span>
+            <span class="stat-chip chip-total" data-filter="all">Total: {{ status_counts.total }}</span>
+            <span class="stat-chip chip-submitted" data-filter="forwarded_to_dean">Pending: {{ status_counts.forwarded_to_dean }}</span>
+            <span class="stat-chip chip-forwarded" data-filter="forwarded_to_ygk">Forwarded: {{ status_counts.forwarded_to_ygk }}</span>
         </div>
         <form method="POST" action="{{ url_for('dean_api.forward_all_to_ygk') }}" style="display:inline;">
             <button type="submit" class="soft-btn compact" onclick="return confirm('Auto-forward all to YGK? (not yet implemented)')">Forward All to YGK</button>
@@ -86,6 +86,17 @@
             </tbody>
         </table>
     </div>
+    {% if pagination and pagination.total_pages > 1 %}
+    <div class="pagination-bar">
+        {% if pagination.has_prev %}
+            <button class="soft-btn compact page-btn" data-page="{{ pagination.page - 1 }}">← Prev</button>
+        {% endif %}
+        <span class="page-info">Page {{ pagination.page }} of {{ pagination.total_pages }} &nbsp;·&nbsp; {{ pagination.total }} total</span>
+        {% if pagination.has_next %}
+            <button class="soft-btn compact page-btn" data-page="{{ pagination.page + 1 }}">Next →</button>
+        {% endif %}
+    </div>
+    {% endif %}
 {% else %}
     <p class="subline">No applications forwarded to Dean yet.</p>
 {% endif %}

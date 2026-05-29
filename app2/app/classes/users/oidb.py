@@ -132,6 +132,33 @@ class Oidb(User, IReviewer, IDocumentHandler):
                 f"Failed to return application: {str(exc)}"
             )
 
+    def cancel_forward_to_ydyo(self, application_id: int) -> OperationResult:
+        """Revert forwarded_to_ydyo back to submitted. Only allowed while YDYO hasn't acted yet."""
+        app_repo = get_application_repository()
+        try:
+            result = app_repo.find_by_id(application_id)
+            if not result.success:
+                return result
+            if result.data is None:
+                return OperationResult.error(
+                    ErrorCode.APPLICATION_NOT_FOUND,
+                    f"Application {application_id} not found."
+                )
+            app = result.data
+            if app.status != "forwarded_to_ydyo":
+                return OperationResult.error(
+                    ErrorCode.INVALID_STATUS_TRANSITION,
+                    f"Cannot cancel: application status is '{app.status}'. Cancellation is only possible while still forwarded to YDYO."
+                )
+            app.status = "submitted"
+            return app_repo.update(app)
+        except Exception as exc:
+            app_repo.rollback()
+            return OperationResult.error(
+                ErrorCode.DB_ERROR,
+                f"Failed to cancel forward: {str(exc)}"
+            )
+
     def get_document(self, doc_id: int) -> OperationResult:
         """Get document. Returns OperationResult."""
         app_repo = get_application_repository()

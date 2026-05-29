@@ -1,7 +1,7 @@
 {% if ydyo_applications %}
     <div class="oidb-header-bar">
         <div class="stats-row">
-            <span class="stat-chip chip-total">Total: {{ ydyo_applications|length }}</span>
+            <span class="stat-chip chip-total">Total: {{ status_counts.total }}</span>
         </div>
         <form method="POST" action="{{ url_for('ydyo_api.forward_all_to_dean') }}" style="display:inline;">
             <button type="submit" class="soft-btn compact" onclick="return confirm('Auto-forward all to Dean? (not yet implemented)')">Forward All to Dean</button>
@@ -81,6 +81,17 @@
             </tbody>
         </table>
     </div>
+    {% if pagination and pagination.total_pages > 1 %}
+    <div class="pagination-bar">
+        {% if pagination.has_prev %}
+            <button class="soft-btn compact page-btn" data-page="{{ pagination.page - 1 }}">← Prev</button>
+        {% endif %}
+        <span class="page-info">Page {{ pagination.page }} of {{ pagination.total_pages }} &nbsp;·&nbsp; {{ pagination.total }} total</span>
+        {% if pagination.has_next %}
+            <button class="soft-btn compact page-btn" data-page="{{ pagination.page + 1 }}">Next →</button>
+        {% endif %}
+    </div>
+    {% endif %}
 {% else %}
     <p class="subline">No applications forwarded to YDYO yet.</p>
 {% endif %}

@@ -16,9 +16,12 @@
         </div>
 
         <div class="tab-strip" role="tablist">
-            <button class="tab-button active" type="button" data-target="panel-main" aria-pressed="true">Main</button>
+            <button class="tab-button active" type="button" data-target="panel-main" data-tab-slug="" aria-pressed="true">Main</button>
             {% for tab in tabs %}
-                <button class="tab-button" type="button" data-target="panel-{{ loop.index }}" aria-pressed="false">{{ tab.title }}</button>
+                <button class="tab-button" type="button"
+                        data-target="panel-{{ loop.index }}"
+                        data-tab-slug="{{ tab.slug }}"
+                        aria-pressed="false">{{ tab.title }}</button>
             {% endfor %}
         </div>
 
@@ -34,19 +37,17 @@
                                 {% if tab.period_open %}<p class="tag-open">Period Open</p>
                                 {% else %}<p class="tag-closed">Period Closed</p>{% endif %}
                             {% endif %}
-                            <button class="soft-btn compact tab-jump" type="button" data-target="panel-{{ loop.index }}">Open</button>
+                            <button class="soft-btn compact tab-jump" type="button"
+                                    data-target="panel-{{ loop.index }}"
+                                    data-tab-slug="{{ tab.slug }}">Open</button>
                         </article>
                     {% endfor %}
                 </div>
             </section>
 
             {% for tab in tabs %}
-            <section class="workspace-panel" id="panel-{{ loop.index }}">
-                {% if tab.partial %}
-                    {% include tab.partial %}
-                {% else %}
-                    <p class="subline">This section will be available in a future phase.</p>
-                {% endif %}
+            <section class="workspace-panel" id="panel-{{ loop.index }}" data-tab-slug="{{ tab.slug }}">
+                <div class="tab-loading-placeholder">Loading…</div>
             </section>
             {% endfor %}
 

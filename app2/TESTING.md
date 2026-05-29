@@ -1,183 +1,115 @@
-# UTMS Automated Testing - Quick Start
+# UTMS Automated Testing
 
-## Installation (One-time setup)
+## Quick start
 
 ```bash
 cd /home/ayna/CODES/utms/app2
-source ../.venv/bin/activate
-pip install pytest pytest-flask pytest-cov
+/home/ayna/316Project/.venv/bin/pytest           # run all 72 tests
+/home/ayna/316Project/.venv/bin/pytest -v        # verbose
+/home/ayna/316Project/.venv/bin/pytest tests/test_roles.py   # one file
+/home/ayna/316Project/.venv/bin/pytest --cov=app --cov-report=html
 ```
 
-## Running Tests
+Current status: **72 tests, all passing.**
 
-### Run ALL tests:
-```bash
-pytest
-# Or use the convenience script:
-./run_tests.sh              # Linux/Mac
-run_tests.bat              # Windows
-```
+---
 
-### Run specific test file:
-```bash
-pytest tests/test_auth.py
-pytest tests/test_applicant.py
-```
+## Test file overview
 
-### Run with detailed output:
-```bash
-pytest -v
-```
+| File | Classes | What is covered |
+|------|---------|-----------------|
+| `test_auth.py` | `TestPublicPages`, `TestLoginFlow`, `TestSessionManagement` | Home page, portal redirects, login/register, session lifecycle, logout |
+| `test_applicant.py` | `TestApplicantAccess`, `TestApplicantTabContent`, `TestApplicantSubmission` | Dashboard access, lazy-load tab endpoint, resubmit / cancel guards |
+| `test_roles.py` | `TestRoleAccess`, `TestRoleIsolation`, `TestTabContentEndpoint`, `TestOidbForwardWorkflow`, `TestOidbRoutes` | All-role dashboard access, cross-role action blocks, lazy-load endpoint, OIDB business logic (forward / return / cancel-forward), redirect assertions |
+| `test_database.py` | `TestUserModel`, `TestApplicationModel`, `TestApplicationRepository` | ORM constraints, password hashing, status transitions, repository layer |
 
-### Run with coverage report:
-```bash
-pytest --cov=app --cov-report=html
-# Then open htmlcov/index.html in browser
-```
+---
 
-### Run single test:
-```bash
-pytest tests/test_auth.py::TestAuthRoutes::test_home_page_loads
-```
+## Fixtures (conftest.py)
 
-## Test Files Overview
+### Users
+All created with password `"test"` via `werkzeug.security.generate_password_hash`.
 
-| File | Tests | Coverage |
-|------|-------|----------|
-| **test_auth.py** | Authentication & session management (10 tests) | Login/Register routes, role redirects |
-| **test_applicant.py** | Applicant workflows (10 tests) | Dashboard, form submission, document handling |
-| **test_roles.py** | Role-based access control (10 tests) | Dean, OIDB, YDYO, YGK access & isolation |
-| **test_database.py** | Models & database (9 tests) | User/Application creation, queries, relationships |
+| Fixture | Role |
+|---------|------|
+| `applicant_user` | applicant |
+| `applicant_user_2` | applicant (second user) |
+| `dean_user` | dean |
+| `oidb_user` | oidb |
+| `ydyo_user` | ydyo |
+| `ygk_user` | ygk |
 
-## Available Fixtures (in conftest.py)
+### Authenticated clients
+Each `auth_client_*` fixture wraps the plain `client` with session cookies already set.
 
-### Users:
-- `applicant_user`, `applicant_user_2`, `applicant_user_3`
-- `dean_user`, `oidb_user`, `ydyo_user`, `ygk_user`
-
-### Authenticated Clients:
-- `auth_client_applicant`, `auth_client_dean`, etc.
-- Automatically logged in - use like: `auth_client_applicant.get("/dashboard/")`
-
-### Test Data:
-- `application_draft` - Draft application ready for testing
-- `application_submitted` - Submitted application in workflow
-
-## Writing Your Own Tests
-
-Example test that checks applicant can submit form:
 ```python
-def test_applicant_submit_form(auth_client_applicant):
-    """Test applicant can submit application form."""
-    resp = auth_client_applicant.post("/api/applicant/submit", json={
-        "id_number": "123456789",
-        "target_program": "Computer Science"
-    })
-    assert resp.status_code in [200, 201]
+def test_something(auth_client_oidb):
+    resp = auth_client_oidb.get("/dashboard/tab/check-documents")
+    assert resp.status_code == 200
 ```
 
-Example test that checks database operations:
+### Applications
+
+| Fixture | Status | Owner |
+|---------|--------|-------|
+| `application_submitted` | `submitted` | `applicant_user` |
+| `application_returned` | `returned` | `applicant_user` |
+| `application_forwarded_to_ydyo` | `forwarded_to_ydyo` | `applicant_user_2` |
+
+---
+
+## Writing tests
+
+### HTTP test
 ```python
-def test_create_application_in_db(app, applicant_user):
-    """Test creating application in database."""
+def test_oidb_tab_loads(auth_client_oidb):
+    resp = auth_client_oidb.get("/dashboard/tab/check-documents")
+    assert resp.status_code == 200
+    assert b"Documents" in resp.data
+```
+
+### Business-logic unit test (Oidb class)
+```python
+from app.classes.users.oidb import Oidb
+from app.models import ApplicationORM
+
+def test_forward_changes_status(app, oidb_user, application_submitted):
     with app.app_context():
-        app_obj = Application(
-            applicant_id=applicant_user.id,
-            status="draft",
-            full_name="John Doe",
-            current_gpa="3.5"
-        )
-        db.session.add(app_obj)
-        db.session.commit()
-        
-        retrieved = Application.query.get(app_obj.id)
-        assert retrieved.status == "draft"
+        oidb = Oidb(oidb_user.id, oidb_user.email, "oidb")
+        result = oidb.forward_to_ydyo(application_submitted.id)
+        assert result.success
+        assert ApplicationORM.query.get(application_submitted.id).status == "forwarded_to_ydyo"
 ```
 
-## Common Test Patterns
-
+### Repository test
 ```python
-# Check HTTP response status
-assert resp.status_code == 200
+from app.database.application_repository import ApplicationRepository
 
-# Check redirect
-assert resp.status_code == 302
-assert "dashboard" in resp.location
-
-# Check session data
-with client.session_transaction() as sess:
-    assert sess.get("user_id") is not None
-
-# Check database state
-with app.app_context():
-    user = User.query.get(1)
-    assert user is not None
-
-# Check JSON response
-resp = client.get("/api/track-application")
-data = resp.get_json()
-assert data["status"] == "submitted"
+def test_find_by_id(app, application_submitted):
+    result = ApplicationRepository.find_by_id(application_submitted.id)
+    assert result.success and result.data is not None
 ```
 
-## Running in CI/CD
+---
 
-These tests can run automatically on every commit. Example for GitHub Actions:
+## Key design rules for tests
 
-```yaml
-name: Tests
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
-        with:
-          python-version: 3.9
-      - run: pip install -r requirements.txt
-      - run: pytest --cov=app
-```
+- **ORM class names**: `UserORM`, `ApplicationORM`, `ApplicationDocumentORM` — not `User` / `Application`.
+- **Valid statuses**: `submitted`, `returned`, `forwarded_to_ydyo`, `forwarded_to_dean`, `forwarded_to_ygk`, `cancelled`. There is no `draft`.
+- **`create_app(test_config=…)`**: Pass `SQLALCHEMY_DATABASE_URI` pointing to a temp file so tests never touch the real DB.
+- **`Query.get()` warnings**: SQLAlchemy 2.x warns against `Model.query.get(id)` — use `db.session.get(Model, id)` in new tests.
 
-## Coverage Reports
+---
 
-After running `pytest --cov=app --cov-report=html`:
-- Open `htmlcov/index.html` in your browser
-- See which lines are tested
-- Identify code that needs more tests
+## Coverage
 
-## Troubleshooting
-
-**Tests fail on import?**
 ```bash
-# Make sure you're in the right directory and venv is activated
-cd /home/ayna/CODES/utms/app2
-source ../.venv/bin/activate
+/home/ayna/316Project/.venv/bin/pytest --cov=app --cov-report=html
+open htmlcov/index.html
 ```
 
-**"Module not found" errors?**
-```bash
-# Reinstall dependencies
-pip install -r requirements.txt
-```
-
-**Want to debug a test?**
-```bash
-# Add breakpoint in test code
-import pdb; pdb.set_trace()
-
-# Then run with -s flag
-pytest -s tests/test_file.py::test_name
-```
-
-## Next Steps
-
-1. ✅ **Basic tests created** - 39 tests covering auth, routes, roles, database
-2. Add tests for **service layer** operations
-3. Add tests for **error cases** and edge conditions
-4. Add **integration tests** for full workflows (e.g., applicant → dean → OIDB → YDYO → YGK)
-5. Set up **CI/CD pipeline** to run tests on every push
-6. Increase coverage to **70%+ on critical business logic**
-
-## Questions?
-
-See [tests/README.md](tests/README.md) for comprehensive documentation.
+Focus areas for future coverage growth:
+- Dean and YDYO forward workflows (mirror OIDB tests)
+- Full applicant submission (multipart form with files)
+- Admin backup / restore routes
+- Edge cases: duplicate application submit, GPA out of range

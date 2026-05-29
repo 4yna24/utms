@@ -41,7 +41,7 @@ def mark_and_forward(application_id):
     else:
         flash(result.error_msg, "error")
     
-    return redirect(url_for("ydyo_api.check_documents"))
+    return redirect(url_for("dashboard.index", tab="set-prep-school-status"))
 
 
 @ydyo_api_bp.route("/forward-all-to-dean", methods=["POST"])
@@ -57,7 +57,7 @@ def forward_all_to_dean():
     else:
         flash(result.error_msg, "error")
     
-    return redirect(url_for("ydyo_api.check_documents"))
+    return redirect(url_for("dashboard.index", tab="set-prep-school-status"))
 
 
 @ydyo_api_bp.route("/view-document/<int:doc_id>", methods=["GET"])

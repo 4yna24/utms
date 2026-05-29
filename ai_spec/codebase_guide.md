@@ -298,15 +298,48 @@ Admin is a special role for managing the software itself. It is separate from al
 
 ## How the Dashboard Tab System Works
 
-Adding a new tab requires exactly three touches:
+Tabs use **lazy loading**: the dashboard shell renders immediately with empty panels. When a user clicks a tab button, JavaScript fetches `/dashboard/tab/<slug>?page=N` which returns the panel HTML fragment. This keeps the initial page load fast regardless of how many applications are in the database.
 
-1. **`config.py` → `PHASE1_TABS`** — add the tab entry with a `"partial"` key pointing to the template fragment.
+### URL structure
 
-2. **`templates/partials/panel_<role>_<tab>.html`** — create the panel content.
+- `/dashboard/` — the shell (no DB queries)
+- `/dashboard/?tab=check-documents` — shell opens on the Check Documents tab automatically
+- `/dashboard/?tab=check-documents&page=2` — opens tab on page 2 (survives refresh)
+- `/dashboard/tab/check-documents?page=2` — the fetch endpoint (returns HTML fragment only)
 
-3. **`routes/dashboard.py` → `_get_role_data()`** — if the tab needs data, add a branch here that calls the role class method and returns a dict.
+### Tab slugs
 
-`dashboard.html` itself does not need to change. It does `{% include tab.partial %}` for every tab.
+Slugs are computed from tab titles by `_slugify()` in `dashboard.py`:
+`re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')`
+
+| Role | Tab title | Slug |
+|------|-----------|------|
+| OIDB | Check Documents | `check-documents` |
+| Dean | Receive & Forward Applications | `receive-forward-applications` |
+| YDYO | Set Prep School Status | `set-prep-school-status` |
+| Applicant | Track Application | `track-application` |
+| Applicant | Submit Application | `submit-application` |
+
+### Adding a new tab — four touches
+
+1. **`config.py` → `PHASE1_TABS`** — add entry with `"title"` and `"partial"` keys.
+
+2. **`templates/partials/panel_<role>_<tab>.html`** — create the panel partial. Add a `{% if pagination … %}` block at the bottom if it shows a list.
+
+3. **`routes/dashboard.py` → `_get_tab_data()`** — add a branch for `(role_slug, tab_slug)` that returns the template context dict. Use `_build_pagination()` and Python-slice the list if pagination is needed. Pass `status_counts` if the partial uses stat chips.
+
+4. **Action routes** that POST and redirect: use `url_for("dashboard.index", tab="<slug>")` so the user lands back on the correct tab after an action.
+
+`dashboard.html` does not need to change; it renders empty panels and the JS handles the rest.
+
+### Error handling
+
+- **Fetch errors** (network down, HTTP 4xx/5xx): `dashboard.js` calls `showToast()` which creates a dismissible toast using the same `.flash-msg` CSS classes as server-rendered flash messages. Toasts auto-dismiss after 5 seconds.
+- **Server-rendered flash messages** (after form actions): rendered by `base.html`, auto-dismissed after 4 seconds by the same JS.
+
+### Pagination
+
+`_get_tab_data()` uses `_PER_PAGE = 10`. It fetches all records from the role class, counts by status for global chip totals, then slices for the requested page. Partials receive `pagination` dict and `status_counts` dict.
 
 **Admin and ROLE_DEFINITIONS**: Admin tabs live in `PHASE1_TABS["admin"]` but `ROLE_DEFINITIONS` does NOT include admin. This means admin's display name won't resolve through the normal lookup — `dashboard.py` handles this with a local `_ROLE_DISPLAY` dict that adds `"admin": "Administrator"`.
 
