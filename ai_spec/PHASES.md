@@ -1,7 +1,7 @@
 # Refactoring Phases - Central Tracking
 
-**Last Updated**: May 23, 2026  
-**Current Phase**: 2 (Service Layer) ✅ COMPLETE
+**Last Updated**: May 29, 2026  
+**Current Phase**: 2 ✅ COMPLETE + Infrastructure additions (see below)
 
 ## Phase Overview
 
@@ -54,6 +54,42 @@ else:
 - ✅ All 5 route files: removed isinstance checks, use static success messages
 - ✅ ApplicationService: removed message dict wrapping (violates OperationResult design)
 - ✅ All service files compile and Flask app initializes successfully
+
+### Infrastructure Additions (May 29, 2026) ✅ COMPLETE
+
+Completed alongside Phase 2, independent of the phase roadmap:
+
+**ORM Renaming**
+- `User` → `UserORM`, `Application` → `ApplicationORM`, `ApplicationDocument` → `ApplicationDocumentORM`
+- All three models now have explicit `__tablename__` so SQLite tables are unaffected
+- All imports updated across adapters, repository, role classes, and routes
+
+**Audit trail on ApplicationORM**
+- Added `last_edited_by_id` (Integer, nullable) and `last_edited_at` (DateTime, nullable)
+- Auto-set by a SQLAlchemy `before_flush` event listener in `app/__init__.py` — never set manually
+- Both columns added to `_ensure_application_new_columns()` for backward compat with existing DBs
+
+**Admin role**
+- New `Admin` class in `classes/users/admin.py`
+- New blueprint `routes/admin.py` at prefix `/api/admin/`
+- Login at `/auth/admin/login` (not linked from public portal, not in `ROLE_DEFINITIONS`)
+- Capabilities: list/change user roles, view config flags, list/create/restore DB backups
+
+**Backup / Restore system**
+- Timestamped backups in `instance/backups/` (format: `project_YYYYMMDD_HHMMSS.bak`)
+- `Admin.restore_backup(filename)` disposes engine connections before swapping file; filename validated (no path traversal)
+- Exposed in the admin Dashboard → Database tab
+
+**CLI management commands** (`app/cli.py`)
+- `flask init-admin` — idempotent; creates `admin@admin` account if absent
+- `flask seed-db [--yes]` — wipes all data, reseeds with 7 applicants (one per status) + all staff roles
+- `entrypoint.sh` calls `init-admin` before starting the server so the admin account survives fresh volumes
+
+**UserRepository additions**
+- `list_all_users()` and `update_user_role(user_id, new_role)` added to `SQLAlchemyUserDataService`
+- `get_user_repository()` factory exposed from `database/__init__.py`
+
+---
 
 ### Phase 3: Refactor Other Classes 🔲 NOT STARTED
 **Goal**: Apply repository pattern to other entities (Document, Intibak, etc.)  
@@ -169,7 +205,8 @@ DO NOT update for:
 |-------|--------|-----------------|---------------|
 | 0 | ✅ COMPLETE | OperationResult + ErrorCode | app/core/result.py |
 | 1 | ✅ COMPLETE | Repositories + Split classes | app/database/ + app/classes/users/ |
-| 2 | 🔄 IN PROGRESS | Services layer | app/services/ (NEW) |
+| 2 | ✅ COMPLETE | Services layer | app/services/ |
+| Infra | ✅ COMPLETE | ORM rename, admin, fingerprint, CLI, backup | see above |
 | 3 | 🔲 TODO | Other repositories | app/database/ |
 | 4 | 🔲 TODO | Thin routes | app/routes/ |
 | 5 | 🔲 TODO | Validation + timestamps | app/models/ |

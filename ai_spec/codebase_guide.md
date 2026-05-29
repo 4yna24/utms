@@ -11,15 +11,16 @@ app/
 ├── core/
 │   ├── result.py       ← OperationResult[T], ErrorCode enum (NO exceptions)
 │   └── __init__.py
-├── services/           ← ✅ Phase 2: Service layer (NEW)
+├── services/           ← Service layer
 │   ├── base_service.py ← BaseService with error(), ok(), validate_required_fields()
 │   ├── application_service.py ← Submit, resubmit, cancel operations
 │   ├── auth_service.py ← Login, register, password_reset
 │   ├── user_service.py ← User operations
 │   └── __init__.py
-├── classes/            ← ✅ Phase 1: Split into users/ directory
-│   ├── users/          ← Role classes with business logic
+├── classes/            ← Role classes with business logic
+│   ├── users/
 │   │   ├── base.py     ← Abstract User class
+│   │   ├── admin.py        ← Admin role (user mgmt, config, DB backup/restore)
 │   │   ├── applicant.py    ← Applicant role (submit, track)
 │   │   ├── dean.py         ← DeanOffice role (review, forward)
 │   │   ├── oidb.py         ← Oidb role (document verification)
@@ -28,25 +29,27 @@ app/
 │   │   └── __init__.py
 │   ├── auth.py         ← Auth class (credentials, tokens)
 │   └── interfaces.py   ← IReviewer, IDocumentHandler abstract bases
-├── database/           ← ✅ Phase 1: Repository pattern
-│   ├── application_repository.py ← ApplicationRepository (all Application queries)
+├── database/           ← Repository pattern
+│   ├── application_repository.py ← ApplicationRepository (all ApplicationORM queries)
 │   ├── interfaces.py   ← ILowLevelDatabase, IHighLevelDatabase, IUserRepository
 │   ├── adapters.py     ← SQLAlchemyUserDataService (implements IUserRepository)
 │   └── __init__.py
 ├── models/             ← SQLAlchemy ORM (data shape only, no logic)
-│   ├── user.py
-│   ├── application.py
+│   ├── user.py         ← UserORM
+│   ├── application.py  ← ApplicationORM, ApplicationDocumentORM
 │   └── __init__.py
-├── routes/             ← ✅ Phase 2: Thin HTTP controllers
-│   ├── auth.py         ← Login, register endpoints (uses AuthService)
+├── routes/             ← Thin HTTP controllers
+│   ├── admin.py        ← Admin API (role changes, backup, restore)
+│   ├── auth.py         ← Login, register endpoints (includes /auth/admin/login)
 │   ├── applicant.py    ← Submit, resubmit, cancel (uses ApplicationService)
-│   ├── dean.py         ← Review, forward to YGK (calls DeanOffice class)
-│   ├── oidb.py         ← Verify docs, forward to YDYO (calls Oidb class)
-│   ├── ydyo.py         ← Mark prep school, forward (calls Ydyo class)
-│   ├── ygk.py          ← Approve applications (calls YGK class)
+│   ├── dean.py         ← Review, forward to YGK
+│   ├── oidb.py         ← Verify docs, forward to YDYO
+│   ├── ydyo.py         ← Mark prep school, forward
+│   ├── ygk.py          ← Approve applications
 │   ├── dashboard.py    ← Dashboard page load, tab data gathering
-│   ├── common.py       ← Shared decorators (@require_role)
+│   ├── common.py       ← Shared decorators (@login_required, @role_required)
 │   └── __init__.py
+├── cli.py              ← Flask CLI management commands (init-admin, seed-db)
 ├── static/
 │   ├── css/
 │   │   ├── main.css        ← Toast styling, global layout
@@ -61,14 +64,42 @@ app/
 │   └── partials/       ← Dashboard tab content fragments
 │       ├── panel_applicant_*.html
 │       ├── panel_oidb_documents.html
+│       ├── panel_admin_users.html
+│       ├── panel_admin_config.html
+│       ├── panel_admin_database.html
 │       └── ...
-├── __init__.py         ← create_app(), db initialization
+├── __init__.py         ← create_app(), db initialization, auto-fingerprint listener
 └── config.py           ← PHASE1_TABS, AVAILABLE_PROGRAMS, feature flags
+```
+
+The project root also has:
+- `run.py` — Flask app entry point
+- `entrypoint.sh` — Docker startup script (runs `init-admin` then starts server)
+- `Dockerfile` — uses `entrypoint.sh` as CMD
+
+---
+
+## ORM Model Naming Convention
+
+ORM model class names carry the `ORM` suffix so they are never confused with domain entities (in `classes/entities/`) or service-layer objects.
+
+| ORM Class | SQLAlchemy table | File |
+|---|---|---|
+| `UserORM` | `user` | `models/user.py` |
+| `ApplicationORM` | `application` | `models/application.py` |
+| `ApplicationDocumentORM` | `application_document` | `models/application.py` |
+
+**Rule**: When a class name does not match the default SQLAlchemy snake-case derivation, you MUST declare `__tablename__` explicitly. All three models above have it. If you add a new ORM model, always declare `__tablename__` to prevent silent table-name drift.
+
+```python
+class SomethingNewORM(db.Model):
+    __tablename__ = "something_new"   # always explicit
+    ...
 ```
 
 ---
 
-## The Three-Layer Architecture (Phase 2)
+## The Three-Layer Architecture
 
 ### Layer 1: `routes/` — HTTP Controllers (Thin)
 Routes are stateless HTTP handlers that:
@@ -81,7 +112,7 @@ Routes are stateless HTTP handlers that:
 ```python
 # Correct pattern (all routes follow this):
 @applicant_api.route("/submit-documents", methods=["POST"])
-@require_login
+@login_required
 def submit_documents():
     service = get_application_service(session["user_id"])
     result = service.submit_application(request.form, request.files)
@@ -101,85 +132,60 @@ def submit_documents():
 - ✅ Display error messages from result.error_msg (already formatted by business layer)
 - ✅ Never use isinstance checks (result.data type is guaranteed by OperationResult contract)
 
-### Layer 2: `services/` — Business Orchestration (NEW - Phase 2)
+### Layer 2: `services/` — Business Orchestration
 Services orchestrate business operations by:
 1. Validating inputs
 2. Calling business classes and repositories
 3. Handling errors with specific ErrorCodes
 4. Returning OperationResult[T] with typed data
 
-Services are instantiated per request with user context and are NOT directly used by routes — routes call services.
-
-```python
-# Service example (ApplicationService):
-class ApplicationService(BaseService):
-    def submit_application(self, form_data, files):
-        # Validate
-        parsed = self.parse_form_data(form_data)
-        error = self.validate_form_data(parsed)
-        if error:
-            return error
-        
-        # Delegate to class
-        applicant = Applicant(self.user_id, self.email)
-        return applicant.submit(parsed, files)  # Returns OperationResult
-```
-
 **Service Rules**:
 - ✅ Return ALL methods as OperationResult[T]
 - ✅ Use specific ErrorCodes (VALIDATION_FAILED, NOT_FOUND, etc.)
 - ✅ Provide user-friendly error messages in result.error_msg
-- ✅ Return business objects in result.data (Application, Document, User)
+- ✅ Return business objects in result.data (ApplicationORM, ApplicationDocumentORM, UserORM)
 - ❌ NO exception throwing (use ErrorCode instead)
 
-### Layer 3: `classes/` — Domain Logic (Phase 1)
-Role classes (`Applicant`, `DeanOffice`, `Oidb`, etc.) implement domain rules:
+### Layer 3: `classes/` — Domain Logic
+Role classes (`Applicant`, `DeanOffice`, `Admin`, etc.) implement domain rules:
 - State transitions (can only forward if status is correct)
 - Business validations (GPA ranges, document requirements)
 - Data mutations (forward application, mark as reviewed)
 
-All access to data goes through repositories (ApplicationRepository, etc.).
+All access to data goes through repositories (`ApplicationRepository`, `get_user_repository()`).
 
 ```python
-# Class example (role method):
 class Oidb(User):
     def return_application(self, application_id, notes):
         app_repo = get_application_repository()
-        
-        # Get application
         result = app_repo.find_by_id(application_id)
         if not result.success:
             return result
-        
         app = result.data
         if app.status != "forwarded_to_oidb":
             return OperationResult.error(
                 ErrorCode.INVALID_STATUS_TRANSITION,
                 f"Cannot return application in status '{app.status}'"
             )
-        
-        # Update and commit via repository
         app.status = "returned"
         app.return_notes = notes
-        return app_repo.update(app)  # Returns OperationResult with Application
+        return app_repo.update(app)
 ```
 
 **Class Rules**:
 - ✅ ALL methods return OperationResult[T]
 - ✅ Instantiated per request with user context: `Oidb(user_id, email, "oidb")`
 - ✅ Use repositories for ALL data access (no direct db.session)
-- ✅ Return business objects in result.data (Application, Document lists, etc.)
 - ❌ NO direct db.session, NO exception throwing
 
-### Layer 4: `database/` — Data Access (Phase 1)
-Repositories provide typed methods returning OperationResult:
+### Layer 4: `database/` — Data Access
+Repositories provide typed methods returning OperationResult.
 
 ```python
-# Repository example (ApplicationRepository):
 class ApplicationRepository:
-    def find_by_id(self, app_id) -> OperationResult[Application]:
+    def find_by_id(self, app_id) -> OperationResult[ApplicationORM]:
         try:
-            app = Application.query.get(app_id)
+            app = ApplicationORM.query.get(app_id)
             if not app:
                 return OperationResult.error(ErrorCode.NOT_FOUND, "Application not found")
             return OperationResult.ok(data=app)
@@ -189,16 +195,31 @@ class ApplicationRepository:
 
 **Repository Rules**:
 - ✅ ALL methods return OperationResult[T]
-- ✅ Typed return: result.data is Application/Document/list, never None for success
+- ✅ Typed return: result.data is ApplicationORM/ApplicationDocumentORM/list, never None for success
 - ✅ Use specific ErrorCodes for each failure mode
 - ✅ Only place where db.session is used directly
 
 ### Layer 5: `models/` — Data Shape (No Logic)
-SQLAlchemy ORM models define columns, relationships, and basic serialization. NO business logic.
+SQLAlchemy ORM models define columns, relationships, and basic serialization. NO business logic. See **ORM Model Naming Convention** above.
 
 ---
 
-## The OperationResult Contract (Phase 2 CRITICAL)
+## Auto-fingerprint on ApplicationORM
+
+`ApplicationORM` has two audit columns:
+
+```python
+last_edited_by_id = db.Column(db.Integer, nullable=True)
+last_edited_at    = db.Column(db.DateTime, nullable=True)
+```
+
+These are set **automatically** by a SQLAlchemy `before_flush` event listener registered in `app/__init__.py`. It fires before every commit and sets both fields from `flask.session["user_id"]` for any dirty or new `ApplicationORM` in the session.
+
+**Rule**: Never manually set `last_edited_by_id` or `last_edited_at` in business code. The listener handles it. If you find manual assignments to these fields, remove them.
+
+---
+
+## The OperationResult Contract (CRITICAL)
 
 Every method in services, classes, and repositories returns OperationResult with this contract:
 
@@ -206,7 +227,7 @@ Every method in services, classes, and repositories returns OperationResult with
 @dataclass
 class OperationResult(Generic[T]):
     success: bool          # True if operation succeeded
-    data: T | None         # Business object (Application, Document, User, list)
+    data: T | None         # Business object (ApplicationORM, ApplicationDocumentORM, UserORM, list)
     error_code: ErrorCode | None
     error_msg: str         # User-friendly message, always set on error
 ```
@@ -214,14 +235,12 @@ class OperationResult(Generic[T]):
 **Contract Rules**:
 1. **SUCCESS PATH**: `OperationResult.ok(data=business_object)`
    - `success = True`
-   - `data = Application | Document | list | User` (NEVER dict with message)
-   - `error_code = None`
+   - `data = ApplicationORM | ApplicationDocumentORM | list | UserORM` (NEVER dict with message)
    - Routes display static message, may use result.data for business logic
 
 2. **ERROR PATH**: `OperationResult.error(ErrorCode.SPECIFIC, "user message")`
    - `success = False`
    - `data = None`
-   - `error_code = ErrorCode.SPECIFIC` (VALIDATION_FAILED, NOT_FOUND, DB_ERROR, etc.)
    - `error_msg = "User-friendly message"` — already formatted, ready to flash
 
 **Anti-Patterns (Will be caught in code review)**:
@@ -229,36 +248,51 @@ class OperationResult(Generic[T]):
 # ❌ WRONG: Wrapping data with message dict
 return OperationResult.ok(data={"message": "Success", "app": app})
 
-# ❌ WRONG: Bare exceptions instead of ErrorCode
-try:
-    ...
-except Exception:
-    raise  # Should return OperationResult.error() instead
-
-# ❌ WRONG: Routes extracting message from Application object
-result = service.return_application(app_id, notes)
+# ❌ WRONG: Routes extracting message from ApplicationORM object
 if result.success:
-    msg = result.data.get("message")  # Application has no .get()!
-    flash(msg, "success")
+    msg = result.data.get("message")  # ApplicationORM has no .get()!
 
 # ❌ WRONG: isinstance checks in routes
 if isinstance(result.data, dict):
     msg = result.data.get("message")
-else:
-    msg = "default"
-flash(msg, "success")
 ```
 
-**Correct Pattern (All routes must follow)**:
+**Correct Pattern**:
 ```python
 result = service.operation(args)
 if result.success:
     flash("Static message", "success")  # NOT extracted
-    # Optionally use result.data for business logic
-    app = result.data  # Type-safe, guaranteed to be Application or None
 else:
-    flash(result.error_msg, "error")  # Error message already formatted
+    flash(result.error_msg, "error")    # Error already formatted
 ```
+
+---
+
+## Admin Role
+
+Admin is a special role for managing the software itself. It is separate from all business roles (applicant, oidb, dean, ygk, ydyo).
+
+**Key properties**:
+- Role slug: `"admin"`
+- NOT in `ROLE_DEFINITIONS` → does not appear on the public portal page or staff role selector
+- Login at `/auth/admin/login` (navigate directly; not linked from the main portal)
+- No self-registration; create accounts via `flask init-admin` or the Flask shell
+
+**Admin class** (`classes/users/admin.py`):
+- `list_users()` → all users, ordered by role then email
+- `change_user_role(user_id, new_role)` → only assignable (non-admin) roles allowed
+- `get_config_summary()` → current feature flag dict from `config.py`
+- `get_all_applications()` → all applications for DB overview
+- `trigger_backup()` → timestamped SQLite backup in `instance/backups/`
+- `list_backups()` → backup metadata list, newest first
+- `restore_backup(filename)` → replaces live DB; disposes engine before swapping the file
+
+**Admin blueprint** (`routes/admin.py`, prefix `/api/admin/`):
+- `POST /users/change-role` — change a user's role
+- `POST /backup` — create a new backup
+- `POST /restore` — restore from a named backup (filename validated, no path traversal)
+
+**Dashboard**: Admin goes to the same `/dashboard/` as other roles, with admin-specific tabs defined in `PHASE1_TABS["admin"]`.
 
 ---
 
@@ -266,32 +300,88 @@ else:
 
 Adding a new tab requires exactly three touches:
 
-1. **`config.py` → `PHASE1_TABS`** — add the tab entry with a `"partial"` key pointing to the template fragment:
-   ```python
-   {"title": "My Tab", "description": "...", "partial": "partials/panel_myrole_mytab.html"}
-   ```
+1. **`config.py` → `PHASE1_TABS`** — add the tab entry with a `"partial"` key pointing to the template fragment.
 
-2. **`templates/partials/panel_<role>_<tab>.html`** — create the panel content. It has access to every variable passed to `render_template` in `dashboard.py`.
+2. **`templates/partials/panel_<role>_<tab>.html`** — create the panel content.
 
-3. **`routes/dashboard.py` → `_get_role_data()`** — if the tab needs data, add a branch here that calls the role class method and returns a dict (e.g., `{"my_applications": svc.get_things()}`).
+3. **`routes/dashboard.py` → `_get_role_data()`** — if the tab needs data, add a branch here that calls the role class method and returns a dict.
 
-`dashboard.html` itself does not need to change. It just does `{% include tab.partial %}` for every tab.
+`dashboard.html` itself does not need to change. It does `{% include tab.partial %}` for every tab.
+
+**Admin and ROLE_DEFINITIONS**: Admin tabs live in `PHASE1_TABS["admin"]` but `ROLE_DEFINITIONS` does NOT include admin. This means admin's display name won't resolve through the normal lookup — `dashboard.py` handles this with a local `_ROLE_DISPLAY` dict that adds `"admin": "Administrator"`.
 
 ---
 
-## How a Request Flows
+## Config as the Single Source of Truth
 
-```
-Browser
-  → route function (routes/<role>.py)
-      → _svc() instantiates role class (classes/users.py)
-          → class method queries/updates via SQLAlchemy (models/)
-      → flash message + redirect  OR  render_template
-          → dashboard.html shell
-              → {% include tab.partial %} (templates/partials/)
+`config.py` owns three categories of constants:
+
+**Tab definitions** (`PHASE1_TABS`) — tabs per role, including `"admin"`. `"partial": None` entries fall back to "coming soon" text.
+
+**Reference data** — lists that populate dropdowns:
+- `AVAILABLE_PROGRAMS` — applicant target programs
+- `AVAILABLE_SEMESTERS` — available intake semesters
+- `AVAILABLE_FACULTIES` — faculty names
+
+**Feature flags** — `APPLICATION_SUBMISSION_PERIOD_OPEN`, `APPLICATION_CANCELLATION_ALLOWED`, `APPLICATION_RESUBMISSION_ALLOWED`. Flip these to open/close periods without touching logic.
+
+---
+
+## CLI Management Commands
+
+Registered in `app/cli.py` and attached to the Flask app in `create_app()`.
+
+```bash
+FLASK_APP=run.py flask init-admin                      # create admin@admin/admin if not exists
+FLASK_APP=run.py flask init-admin --email x --password y  # custom credentials
+FLASK_APP=run.py flask seed-db                         # wipe + reseed with test data (prompts)
+FLASK_APP=run.py flask seed-db --yes                   # skip confirmation (useful in scripts)
 ```
 
-For the dashboard specifically: `dashboard.py` calls `_get_role_data()` which calls the class, and all returned data is spread into `render_template`. Partials reference those variables directly.
+**`init-admin`** is idempotent — safe to run on every container boot. The Docker `entrypoint.sh` calls it before starting the server so the admin account always exists when the volume is fresh.
+
+**`seed-db`** wipes ALL data and recreates:
+- Staff: `admin@admin/admin`, `oidb@test/test`, `dean@test/test`, `ygk@test/test`, `ydyo@test/test`
+- Applicants `applicant1@test` … `applicant7@test` (password: `test`), one per workflow status
+
+---
+
+## Backup / Restore System
+
+Managed through `SQLAlchemyDatabaseAdapter` (the `ILowLevelDatabase` implementation) and surfaced via the `Admin` class.
+
+- **Backups directory**: `instance/backups/` — timestamped `.bak` files (`project_YYYYMMDD_HHMMSS.bak`)
+- **Create**: `Admin.trigger_backup()` → calls `db_interface.backup()`
+- **List**: `Admin.list_backups()` → returns `[{filename, created_at, size_kb}]` sorted newest first
+- **Restore**: `Admin.restore_backup(filename)` → validates filename (no `/` or `\`, must end `.bak`), calls `db.engine.dispose()` to flush pooled connections, then copies the backup over the live `project.db`
+
+The engine auto-reconnects on the next request after a restore.
+
+---
+
+## Adding a New Column to ApplicationORM
+
+New columns require two changes or existing databases will break on startup:
+
+1. **`models/application.py`** — add the `db.Column(...)` declaration to `ApplicationORM`.
+2. **`app/__init__.py` → `_ensure_application_new_columns()`** — add the column name and its SQLite type string to the `additions` dict.
+
+The helper runs `ALTER TABLE application ADD COLUMN …` for any missing column at startup, keeping existing SQLite files compatible.
+
+Columns currently managed by this helper: `id_number`, `target_program`, `target_semester`, `is_currently_enrolled`, `oidb_notes`, `prep_school_status`, `forwarded_faculty`, `last_edited_by_id`, `last_edited_at`.
+
+---
+
+## Role Implementation Checklist
+
+| Role | Class file | Route file | Dashboard partial | `_get_role_data` branch |
+|------|-----------|-----------|-------------------|------------------------|
+| Admin | `classes/users/admin.py` | `routes/admin.py` | `panel_admin_*.html` (3 tabs) | ✓ |
+| Applicant | `classes/users/applicant.py` | `routes/applicant.py` | `panel_applicant_*.html` | ✓ |
+| OIDB | `classes/users/oidb.py` | `routes/oidb.py` | `panel_oidb_documents.html` | ✓ |
+| Dean | `classes/users/dean.py` | `routes/dean.py` | `panel_dean_applications.html` | ✓ |
+| YDYO | `classes/users/ydyo.py` | `routes/ydyo.py` | `panel_ydyo_documents.html` | ✓ |
+| YGK | `classes/users/ygk.py` | `routes/ygk.py` | — (partial: None) | — |
 
 ---
 
@@ -303,50 +393,36 @@ All interactive behavior for the dashboard lives here:
 - **Column sort** — any `<table id="...">` with `<th data-sort="N">` gets clickable sort (row-pairs kept together during sort so expand rows stay linked)
 - **Expand rows** — `.expand-btn` toggles `.app-row-expand` visibility; only one open at a time
 
-To add filter chips to a new table: put `data-filter-table="your-table-id"` on the `.stats-row` container, add `data-filter="<status_value>"` on each chip, and `data-status="{{ app.status }}"` on each header `<tr>`.
-
 ---
 
-## Role Implementation Checklist
+## Auth Routes
 
-| Role | Class file | Route file | Dashboard partial | `_get_role_data` branch |
-|------|-----------|-----------|-------------------|------------------------|
-| Applicant | `classes/users.py` | `routes/applicant.py` | `panel_applicant_*.html` | ✓ |
-| OIDB | `classes/users.py` | `routes/oidb.py` | `panel_oidb_documents.html` | ✓ |
-| Dean | `classes/users.py` | `routes/dean.py` | `panel_dean_applications.html` | ✓ |
-| YDYO | `classes/users.py` | `routes/ydyo.py` | `panel_ydyo_documents.html` | ✓ |
-| YGK | `classes/users.py` | `routes/ygk.py` | — (partial: None) | — |
+| Endpoint | Who | Notes |
+|---|---|---|
+| `/auth/applicant/login` | Applicants | No role selector |
+| `/auth/applicant/register` | Applicants | Open self-registration |
+| `/auth/staff/login` | Staff roles (oidb, dean, ygk, ydyo) | Role dropdown; role validated against `_STAFF_SLUGS` |
+| `/auth/staff/register` | Staff roles | Role dropdown |
+| `/auth/admin/login` | Admin only | No role selector, no register link, not linked from main page |
+
+Admin is excluded from `_STAFF_SLUGS` — attempting to log in as admin via the staff login route returns "Invalid role selected."
 
 ---
 
 ## Standalone Pages vs. Dashboard
 
-Routes like `/api/oidb/check-documents` and `/api/dean/check-applicants` render standalone templates (`oidb_check_documents.html`, `dean_check_applicants.html`). These exist for direct URL access but are **not** the primary UI — the dashboard is. Standalone pages have their own inline JS for sort; `dashboard.js` only runs on the dashboard.
+Routes like `/api/oidb/check-documents` and `/api/dean/check-applicants` render standalone templates. These exist for direct URL access but are **not** the primary UI — the dashboard is.
 
 ---
 
-## Config as the Single Source of Truth
+## How a Request Flows
 
-`config.py` owns three categories of constants:
-
-**Tab definitions** (`PHASE1_TABS`) — what tabs exist per role, their titles, endpoints, and which partial they render. Change tab names or order here only. `"partial": None` entries fall back to "coming soon" text.
-
-**Reference data** — lists that populate dropdowns in templates:
-- `AVAILABLE_PROGRAMS` — applicant target programs
-- `AVAILABLE_SEMESTERS` — available intake semesters
-- `AVAILABLE_FACULTIES` — faculty names shown in Dean's forward-to-YGK dropdown
-
-These are passed to every `render_template` call in `dashboard.py` so all partials can access them. Standalone pages (e.g. `routes/dean.py`) import and pass them explicitly.
-
-**Feature flags** — `APPLICATION_SUBMISSION_PERIOD_OPEN`, `APPLICATION_CANCELLATION_ALLOWED`, `APPLICATION_RESUBMISSION_ALLOWED`. Flip these to open/close periods without touching logic.
-
----
-
-## Adding a New Column to Application
-
-New columns require two changes or existing databases will break on startup:
-
-1. **`models/application.py`** — add the `db.Column(...)` declaration.
-2. **`app/__init__.py` → `_ensure_application_new_columns()`** — add the column name and its SQLite type string to the `additions` dict.
-
-The helper runs `ALTER TABLE application ADD COLUMN …` for any missing column at startup, keeping existing SQLite files compatible.
+```
+Browser
+  → route function (routes/<role>.py)
+      → _svc() instantiates role class (classes/users/<role>.py)
+          → class method queries/updates via ApplicationRepository / UserRepository
+      → flash message + redirect  OR  render_template
+          → dashboard.html shell
+              → {% include tab.partial %} (templates/partials/)
+```
