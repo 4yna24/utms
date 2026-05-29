@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from flask import Flask
 
+from .admin import admin_bp
 from .applicant import applicant_api_bp
 from .auth import auth_bp
 from .dashboard import dashboard_bp
@@ -18,6 +19,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
 
+    app.register_blueprint(admin_bp)
     app.register_blueprint(applicant_api_bp)
     app.register_blueprint(oidb_api_bp)
     app.register_blueprint(dean_api_bp)

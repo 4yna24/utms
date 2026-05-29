@@ -250,6 +250,45 @@ def staff_login():
     )
 
 
+@auth_bp.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    """Admin login — not linked from the public portal, navigate directly."""
+    already_authenticated = _redirect_if_authenticated()
+    if already_authenticated:
+        return already_authenticated
+
+    service = AuthService()
+
+    if request.method == "POST":
+        email = (request.form.get("email") or "").strip().lower()
+        password = request.form.get("password") or ""
+
+        result = service.validate_credentials(email, password)
+        if not result.success:
+            flash(result.error_msg, "error")
+            return redirect(url_for("auth.admin_login"))
+
+        result = service.login(email, password, role="admin")
+        if not result.success:
+            flash(result.error_msg, "error")
+            return redirect(url_for("auth.admin_login"))
+
+        user = result.data
+        _set_session(user)
+        return redirect(url_for("dashboard.index"))
+
+    return _render_login(
+        {
+            "page_title": "Admin Login",
+            "form_title": "Administrator Login",
+            "submit_label": "Login as Administrator",
+            "show_role_selector": False,
+            "role_value": "admin",
+            "register_link_endpoint": None,
+        }
+    )
+
+
 @auth_bp.route("/logout", methods=["GET"])
 def logout():
     """Clear auth session."""

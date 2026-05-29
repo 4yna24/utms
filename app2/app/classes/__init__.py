@@ -2,7 +2,7 @@
 
 from .auth import AuthClass
 from .entities import Application, Document, IntibakTable
-from .users import Applicant, DeanOffice, Oidb, User, Ydyo, YGK
+from .users import Admin, Applicant, DeanOffice, Oidb, User, Ydyo, YGK
 
 __all__ = [
     "AuthClass",
@@ -10,6 +10,7 @@ __all__ = [
     "Document",
     "IntibakTable",
     "User",
+    "Admin",
     "Applicant",
     "DeanOffice",
     "YGK",

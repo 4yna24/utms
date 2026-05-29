@@ -7,9 +7,10 @@ from datetime import datetime
 from .. import db
 
 
-class Application(db.Model):
+class ApplicationORM(db.Model):
     """Transfer application submitted by an applicant."""
 
+    __tablename__ = "application"
     __table_args__ = (db.UniqueConstraint("applicant_id", name="uq_application_applicant_id"),)
 
     id = db.Column(db.Integer, primary_key=True)
@@ -41,18 +42,23 @@ class Application(db.Model):
     forwarded_faculty = db.Column(db.String(120), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
-    applicant = db.relationship("User", back_populates="application")
+    # Audit trail — auto-set by the before_flush listener in app/__init__.py
+    last_edited_by_id = db.Column(db.Integer, nullable=True)
+    last_edited_at = db.Column(db.DateTime, nullable=True)
+
+    applicant = db.relationship("UserORM", back_populates="application")
     documents = db.relationship(
-        "ApplicationDocument",
+        "ApplicationDocumentORM",
         back_populates="application",
         cascade="all, delete-orphan",
-        order_by="ApplicationDocument.document_slot",
+        order_by="ApplicationDocumentORM.document_slot",
     )
 
 
-class ApplicationDocument(db.Model):
+class ApplicationDocumentORM(db.Model):
     """Uploaded document metadata for an application."""
 
+    __tablename__ = "application_document"
     __table_args__ = (
         db.UniqueConstraint("application_id", "document_slot", name="uq_application_document_slot"),
     )
@@ -65,4 +71,4 @@ class ApplicationDocument(db.Model):
     file_path = db.Column(db.String(512), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
-    application = db.relationship("Application", back_populates="documents")
+    application = db.relationship("ApplicationORM", back_populates="documents")

@@ -1,13 +1,33 @@
 from pathlib import Path
 import os
+from datetime import datetime
 
 from flask import Flask, redirect, render_template, url_for
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import text
+from sqlalchemy import event as sa_event, text
 
 from .config import APPLICATION_UPLOAD_SUBDIR, ROLE_DEFINITIONS
 
 db = SQLAlchemy()
+
+
+@sa_event.listens_for(db.session, "before_flush")
+def _auto_fingerprint_application(session, flush_context, instances):
+    """Auto-set last_edited_by_id / last_edited_at whenever an ApplicationORM is flushed."""
+    try:
+        from flask import session as flask_session
+        user_id = flask_session.get("user_id")
+    except RuntimeError:
+        # Outside a request context (startup, CLI, tests without request)
+        return
+    if user_id is None:
+        return
+    from .models import ApplicationORM
+    now = datetime.utcnow()
+    for obj in list(session.dirty) + list(session.new):
+        if isinstance(obj, ApplicationORM):
+            obj.last_edited_by_id = user_id
+            obj.last_edited_at = now
 
 
 def _ensure_user_role_column():
@@ -48,6 +68,8 @@ def _ensure_application_new_columns():
             "oidb_notes": "TEXT",
             "prep_school_status": "VARCHAR(32)",
             "forwarded_faculty": 'VARCHAR(120)',
+            "last_edited_by_id": "INTEGER",
+            "last_edited_at": "DATETIME",
         }
         for col_name, col_def in additions.items():
             if col_name not in column_names:
@@ -81,6 +103,9 @@ def create_app():
         if role_slug == "applicant":
             return redirect(url_for("auth.applicant_login"))
         return redirect(url_for("auth.staff_login", role=role_slug))
+
+    from .cli import register_commands
+    register_commands(app)
 
     with app.app_context():
         Path(app.config["APPLICATION_UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)

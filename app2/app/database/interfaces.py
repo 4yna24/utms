@@ -88,6 +88,22 @@ class IUserRepository(ABC):
         Returns OperationResult with User data or NOT_FOUND error.
         """
 
+    @abstractmethod
+    def list_all_users(self) -> list:
+        """
+        Return all users ordered by role then email.
+
+        Returns list of UserORM instances.
+        """
+
+    @abstractmethod
+    def update_user_role(self, user_id: int, new_role: str):
+        """
+        Update a user's role.
+
+        Returns updated UserORM on success or None if not found / error.
+        """
+
 
 class IApplicationRepository(ABC):
     """

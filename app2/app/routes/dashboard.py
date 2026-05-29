@@ -17,7 +17,7 @@ from ..config import (
     PHASE1_TABS,
     ROLE_DEFINITIONS,
 )
-from ..models import Application
+from ..models import ApplicationORM
 from .common import login_required
 
 dashboard_bp = Blueprint("dashboard", __name__, url_prefix="/dashboard")
@@ -26,8 +26,8 @@ dashboard_bp = Blueprint("dashboard", __name__, url_prefix="/dashboard")
 def _get_role_data(role_slug: str, user_id: int, email: str) -> dict:
     if role_slug == "applicant":
         app = (
-            Application.query
-            .options(selectinload(Application.documents))
+            ApplicationORM.query
+            .options(selectinload(ApplicationORM.documents))
             .filter_by(applicant_id=user_id)
             .first()
         )
@@ -45,6 +45,16 @@ def _get_role_data(role_slug: str, user_id: int, email: str) -> dict:
         from ..classes import Ydyo
         return {"ydyo_applications": Ydyo(user_id, email, "ydyo").get_applications()}
 
+    if role_slug == "admin":
+        from ..classes import Admin
+        admin = Admin(user_id, email, "admin")
+        return {
+            "admin_users": admin.list_users().data or [],
+            "admin_config": admin.get_config_summary(),
+            "admin_applications": admin.get_all_applications().data or [],
+            "admin_backups": admin.list_backups().data or [],
+        }
+
     return {}
 
 
@@ -54,7 +64,8 @@ def index():
     role_slug = session.get("user_role")
     user_id = session.get("user_id")
     email = session.get("user_email")
-    role_name = next((r["name"] for r in ROLE_DEFINITIONS if r["slug"] == role_slug), role_slug)
+    _ROLE_DISPLAY = {**{r["slug"]: r["name"] for r in ROLE_DEFINITIONS}, "admin": "Administrator"}
+    role_name = _ROLE_DISPLAY.get(role_slug, role_slug)
 
     return render_template(
         "dashboard.html",

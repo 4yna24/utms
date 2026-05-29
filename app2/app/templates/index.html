@@ -19,6 +19,10 @@
                     <a class="soft-btn alt" href="{{ url_for('role_entry', role_slug=role.slug) }}">{{ role.name }}</a>
                 {% endfor %}
             </div>
+
+            <div style="margin-top:2rem; text-align:right;">
+                <a href="{{ url_for('auth.admin_login') }}" style="font-size:0.78rem; color:#888; text-decoration:none;">Admin</a>
+            </div>
         </div>
     </section>
 {% endblock %}

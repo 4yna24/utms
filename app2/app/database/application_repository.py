@@ -1,4 +1,4 @@
-"""Application data repository - handles all Application model operations."""
+"""Application data repository - handles all ApplicationORM model operations."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from .. import db
 from ..core import OperationResult, ErrorCode
-from ..models import Application, ApplicationDocument
+from ..models import ApplicationORM, ApplicationDocumentORM
 
 
 class ApplicationRepository:
@@ -16,7 +16,7 @@ class ApplicationRepository:
     def find_by_applicant_id(applicant_id: int) -> OperationResult:
         """Find application by applicant ID."""
         try:
-            app = Application.query.filter_by(applicant_id=applicant_id).first()
+            app = ApplicationORM.query.filter_by(applicant_id=applicant_id).first()
             if app:
                 return OperationResult.ok(data=app)
             return OperationResult.ok(data=None)
@@ -30,7 +30,7 @@ class ApplicationRepository:
     def find_by_id(application_id: int) -> OperationResult:
         """Find application by ID."""
         try:
-            app = Application.query.get(application_id)
+            app = ApplicationORM.query.get(application_id)
             if app:
                 return OperationResult.ok(data=app)
             return OperationResult.ok(data=None)
@@ -44,7 +44,7 @@ class ApplicationRepository:
     def create(applicant_id: int, **kwargs) -> OperationResult:
         """Create new application."""
         try:
-            app = Application(applicant_id=applicant_id, **kwargs)
+            app = ApplicationORM(applicant_id=applicant_id, **kwargs)
             db.session.add(app)
             db.session.flush()
             return OperationResult.ok(data=app)
@@ -59,7 +59,7 @@ class ApplicationRepository:
     def update_status(application_id: int, status: str) -> OperationResult:
         """Update application status."""
         try:
-            app = Application.query.get(application_id)
+            app = ApplicationORM.query.get(application_id)
             if not app:
                 return OperationResult.error(
                     ErrorCode.APPLICATION_NOT_FOUND,
@@ -76,7 +76,7 @@ class ApplicationRepository:
             )
 
     @staticmethod
-    def update(application: Application) -> OperationResult:
+    def update(application: ApplicationORM) -> OperationResult:
         """Update entire application object."""
         try:
             db.session.merge(application)
@@ -119,12 +119,12 @@ class ApplicationRepository:
         """Get applications pending dean review."""
         try:
             apps = (
-                Application.query.options(
-                    selectinload(Application.documents),
-                    selectinload(Application.applicant)
+                ApplicationORM.query.options(
+                    selectinload(ApplicationORM.documents),
+                    selectinload(ApplicationORM.applicant)
                 )
-                .filter(Application.status.in_(["forwarded_to_dean", "forwarded_to_ygk"]))
-                .order_by(Application.created_at.desc())
+                .filter(ApplicationORM.status.in_(["forwarded_to_dean", "forwarded_to_ygk"]))
+                .order_by(ApplicationORM.created_at.desc())
                 .all()
             )
             return OperationResult.ok(data=apps)
@@ -139,11 +139,11 @@ class ApplicationRepository:
         """Get applications pending OIDB review."""
         try:
             apps = (
-                Application.query.options(
-                    selectinload(Application.documents),
-                    selectinload(Application.applicant)
+                ApplicationORM.query.options(
+                    selectinload(ApplicationORM.documents),
+                    selectinload(ApplicationORM.applicant)
                 )
-                .order_by(Application.created_at.desc())
+                .order_by(ApplicationORM.created_at.desc())
                 .all()
             )
             return OperationResult.ok(data=apps)
@@ -158,12 +158,12 @@ class ApplicationRepository:
         """Get applications pending YDYO review."""
         try:
             apps = (
-                Application.query.options(
-                    selectinload(Application.documents),
-                    selectinload(Application.applicant)
+                ApplicationORM.query.options(
+                    selectinload(ApplicationORM.documents),
+                    selectinload(ApplicationORM.applicant)
                 )
                 .filter_by(status="forwarded_to_ydyo")
-                .order_by(Application.created_at.desc())
+                .order_by(ApplicationORM.created_at.desc())
                 .all()
             )
             return OperationResult.ok(data=apps)
@@ -174,10 +174,28 @@ class ApplicationRepository:
             )
 
     @staticmethod
+    def get_all() -> OperationResult:
+        """Get all applications (admin use)."""
+        try:
+            apps = (
+                ApplicationORM.query.options(
+                    selectinload(ApplicationORM.applicant)
+                )
+                .order_by(ApplicationORM.created_at.desc())
+                .all()
+            )
+            return OperationResult.ok(data=apps)
+        except Exception as exc:
+            return OperationResult.error(
+                ErrorCode.DB_ERROR,
+                f"Failed to fetch applications: {str(exc)}"
+            )
+
+    @staticmethod
     def delete_documents(application_id: int) -> OperationResult:
         """Delete all documents for an application."""
         try:
-            docs = ApplicationDocument.query.filter_by(application_id=application_id).all()
+            docs = ApplicationDocumentORM.query.filter_by(application_id=application_id).all()
             for doc in docs:
                 db.session.delete(doc)
             return OperationResult.ok()
@@ -191,7 +209,7 @@ class ApplicationRepository:
     def get_by_status(status: str) -> OperationResult:
         """Get all applications with a specific status."""
         try:
-            apps = Application.query.filter_by(status=status).all()
+            apps = ApplicationORM.query.filter_by(status=status).all()
             return OperationResult.ok(data=apps)
         except Exception as exc:
             return OperationResult.error(
@@ -200,7 +218,7 @@ class ApplicationRepository:
             )
 
     @staticmethod
-    def add_to_session(application: Application) -> OperationResult:
+    def add_to_session(application: ApplicationORM) -> OperationResult:
         """Add application to session without committing (for batch operations)."""
         try:
             db.session.merge(application)
@@ -215,7 +233,7 @@ class ApplicationRepository:
     def get_document(doc_id: int) -> OperationResult:
         """Get document by ID."""
         try:
-            doc = ApplicationDocument.query.get(doc_id)
+            doc = ApplicationDocumentORM.query.get(doc_id)
             if not doc:
                 return OperationResult.error(
                     ErrorCode.DOCUMENT_NOT_FOUND,
@@ -229,7 +247,7 @@ class ApplicationRepository:
             )
 
     @staticmethod
-    def add_document(document: ApplicationDocument) -> OperationResult:
+    def add_document(document: ApplicationDocumentORM) -> OperationResult:
         """Add a single document to session without committing."""
         try:
             db.session.add(document)
@@ -241,7 +259,7 @@ class ApplicationRepository:
             )
 
     @staticmethod
-    def add_documents(documents: list[ApplicationDocument]) -> OperationResult:
+    def add_documents(documents: list[ApplicationDocumentORM]) -> OperationResult:
         """Add multiple documents to session without committing."""
         try:
             for doc in documents:
@@ -254,7 +272,7 @@ class ApplicationRepository:
             )
 
     @staticmethod
-    def delete_document(document: ApplicationDocument) -> OperationResult:
+    def delete_document(document: ApplicationDocumentORM) -> OperationResult:
         """Delete a single document from session without committing."""
         try:
             db.session.delete(document)

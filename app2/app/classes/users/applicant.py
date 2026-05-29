@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 
 from ...core import OperationResult, ErrorCode
 from ...database import get_application_repository
-from ...models import ApplicationDocument
+from ...models import ApplicationDocumentORM
 from ..interfaces import IDocumentHandler
 from .base import User
 
@@ -109,7 +109,7 @@ class Applicant(User, IDocumentHandler):
             stored_name = f"application_{application_id}_document_{slot}_{safe_name}"
             full_path = Path(upload_root) / stored_name
             file_item.save(full_path)
-            docs.append(ApplicationDocument(
+            docs.append(ApplicationDocumentORM(
                 application_id=application_id,
                 document_slot=slot,
                 original_name=safe_name,
@@ -138,7 +138,6 @@ class Applicant(User, IDocumentHandler):
 
         try:
             # Create application
-            from ...models import Application
             create_result = app_repo.create(
                 applicant_id=self.user_id,
                 status="submitted",

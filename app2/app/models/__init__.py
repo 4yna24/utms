@@ -1,6 +1,6 @@
 """Database models package."""
 
-from .application import Application, ApplicationDocument
-from .user import User
+from .application import ApplicationDocumentORM, ApplicationORM
+from .user import UserORM
 
-__all__ = ["User", "Application", "ApplicationDocument"]
+__all__ = ["UserORM", "ApplicationORM", "ApplicationDocumentORM"]

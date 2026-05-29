@@ -7,9 +7,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ ./app/
 COPY run.py .
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
 
 VOLUME ["/app/instance"]
 
 EXPOSE 5000
 
-CMD ["python", "run.py"]
+CMD ["./entrypoint.sh"]

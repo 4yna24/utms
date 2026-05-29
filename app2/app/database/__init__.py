@@ -25,3 +25,8 @@ def get_application_repository():
     """Get application repository (data access layer for applications)."""
     return ApplicationRepository
 
+
+def get_user_repository():
+    """Get user data service (user management operations)."""
+    return current_app.extensions['user_data_interface']
+

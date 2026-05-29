@@ -139,4 +139,24 @@ PHASE1_TABS = {
             "partial": "partials/panel_ydyo_documents.html",
         },
     ],
+    "admin": [
+        {
+            "title": "User Management",
+            "description": "View all users and change their roles.",
+            "endpoint": "admin_api.change_user_role",
+            "partial": "partials/panel_admin_users.html",
+        },
+        {
+            "title": "Config",
+            "description": "Current feature flag values.",
+            "endpoint": "admin_api.trigger_backup",
+            "partial": "partials/panel_admin_config.html",
+        },
+        {
+            "title": "Database",
+            "description": "Application records and backup.",
+            "endpoint": "admin_api.trigger_backup",
+            "partial": "partials/panel_admin_database.html",
+        },
+    ],
 }
