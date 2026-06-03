@@ -66,6 +66,40 @@ class DeanOffice(User, IReviewer):
                 f"Failed to forward application: {str(exc)}"
             )
 
+    def return_application(self, application_id: int, target: str, notes: str) -> OperationResult:
+        """Return application to a previous stage with a reason note."""
+        _target_status = {"applicant": "returned", "oidb": "submitted", "ydyo": "forwarded_to_ydyo"}
+        if target not in _target_status:
+            return OperationResult.error(
+                ErrorCode.VALIDATION_FAILED,
+                f"Invalid return target: '{target}'."
+            )
+        if not notes or not notes.strip():
+            return OperationResult.error(
+                ErrorCode.VALIDATION_FAILED,
+                "A reason must be provided when returning an application."
+            )
+
+        app_repo = get_application_repository()
+        result = app_repo.find_by_id(application_id)
+        if not result.success:
+            return result
+        app = result.data
+        if app is None:
+            return OperationResult.error(
+                ErrorCode.APPLICATION_NOT_FOUND,
+                f"Application {application_id} not found."
+            )
+        if app.status != "forwarded_to_dean":
+            return OperationResult.error(
+                ErrorCode.INVALID_STATUS_TRANSITION,
+                f"Cannot return application in status '{app.status}'."
+            )
+
+        app.dean_notes = notes.strip()
+        app.status = _target_status[target]
+        return app_repo.update(app)
+
     def forward_all_to_ygk(self) -> OperationResult:
         """Forward all pending applications to YGK. Returns OperationResult."""
         return OperationResult.error(

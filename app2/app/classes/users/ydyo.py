@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import json
+from typing import TYPE_CHECKING
+
 from ...core import OperationResult, ErrorCode
 from ...database import get_application_repository
 from ..interfaces import IReviewer
 from .base import User
+
+if TYPE_CHECKING:
+    from ...services.document_checker import IDocumentChecker
 
 
 class Ydyo(User, IReviewer):
@@ -80,11 +86,86 @@ class Ydyo(User, IReviewer):
             )
 
     def forward_all_to_dean(self) -> OperationResult:
-        """Forward all applications to Dean. Returns OperationResult."""
-        return OperationResult.error(
-            ErrorCode.UNKNOWN_ERROR,
-            "Auto-forward to Dean is not yet implemented."
-        )
+        """Forward all forwarded_to_ydyo applications to Dean without document checking."""
+        app_repo = get_application_repository()
+        try:
+            result = app_repo.get_by_status("forwarded_to_ydyo")
+            if not result.success:
+                return result
+
+            apps = result.data or []
+            count = len(apps)
+            for app in apps:
+                app.prep_school_status = "eligible"
+                app.status = "forwarded_to_dean"
+                add_result = app_repo.add_to_session(app)
+                if not add_result.success:
+                    app_repo.rollback()
+                    return add_result
+
+            commit_result = app_repo.commit()
+            if commit_result.success:
+                commit_result.data = {"forwarded_count": count}
+            return commit_result
+        except Exception as exc:
+            app_repo.rollback()
+            return OperationResult.error(
+                ErrorCode.DB_ERROR,
+                f"Failed to forward applications: {str(exc)}"
+            )
+
+    def auto_check_and_forward_all(self, checker: "IDocumentChecker | None" = None) -> OperationResult:
+        """
+        Run document checker on every forwarded_to_ydyo application, store results, and
+        forward those that pass (marking them eligible) to the Dean.
+        Applications with errors stay in 'forwarded_to_ydyo' but are auto_checked.
+
+        Args:
+            checker: IDocumentChecker implementation.  Defaults to MockDocumentChecker.
+        """
+        if checker is None:
+            from ...services.document_checker import MockDocumentChecker
+            checker = MockDocumentChecker()
+
+        app_repo = get_application_repository()
+        try:
+            result = app_repo.get_by_status_with_documents("forwarded_to_ydyo")
+            if not result.success:
+                return result
+
+            apps = result.data or []
+            forwarded = 0
+            flagged = 0
+
+            for app in apps:
+                check_result = checker.check_application(app)
+                app.doc_checker_status = "auto_checked"
+                app.doc_checker_errors = json.dumps(
+                    [e.to_dict() for e in check_result.errors]
+                )
+
+                if check_result.passed:
+                    app.prep_school_status = "eligible"
+                    app.status = "forwarded_to_dean"
+                    forwarded += 1
+                else:
+                    flagged += 1
+
+                add_result = app_repo.add_to_session(app)
+                if not add_result.success:
+                    app_repo.rollback()
+                    return add_result
+
+            commit_result = app_repo.commit()
+            if commit_result.success:
+                commit_result.data = {"forwarded": forwarded, "flagged": flagged}
+            return commit_result
+        except Exception as exc:
+            app_repo.rollback()
+            return OperationResult.error(
+                ErrorCode.DB_ERROR,
+                f"Auto-check failed: {str(exc)}"
+            )
 
     def set_prepschool_status(self) -> OperationResult:
         """Set prep school status. Returns OperationResult."""

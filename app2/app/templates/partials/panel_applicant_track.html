@@ -9,8 +9,12 @@
             <div class="tracker-app-id">Application #{{ applicant_application.id }}</div>
             <div class="tracker-program">{{ applicant_application.target_program or applicant_application.target_department }}</div>
             <div class="tracker-semester subline">{{ applicant_application.target_semester or '—' }}</div>
-            {% if is_returned and applicant_application.oidb_notes %}
-                <div class="tracker-return-note">Returned: {{ applicant_application.oidb_notes }}</div>
+            {% if is_returned %}
+                {% if applicant_application.dean_notes %}
+                    <div class="tracker-return-note">Returned by Dean: {{ applicant_application.dean_notes }}</div>
+                {% elif applicant_application.oidb_notes %}
+                    <div class="tracker-return-note">Returned: {{ applicant_application.oidb_notes }}</div>
+                {% endif %}
             {% endif %}
         </div>
         <div class="tracker-icon

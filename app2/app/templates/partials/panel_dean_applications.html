@@ -64,8 +64,14 @@
                                 </div>
                             </div>
 
+                            {% if app.dean_notes %}
+                                <div class="info-box warning" style="margin:10px 0 0;">
+                                    <strong>Previous return note:</strong> {{ app.dean_notes }}
+                                </div>
+                            {% endif %}
+
                             {% if app.status == 'forwarded_to_dean' %}
-                            <div class="action-row">
+                            <div class="action-col">
                                 <form method="POST" action="{{ url_for('dean_api.forward_to_ygk', application_id=app.id) }}" class="inline-form">
                                     <select name="faculty" required>
                                         <option value="">Select faculty…</option>
@@ -74,6 +80,19 @@
                                         {% endfor %}
                                     </select>
                                     <button type="submit" class="soft-btn">Forward to YGK</button>
+                                </form>
+                                <form method="POST" action="{{ url_for('dean_api.return_application', application_id=app.id) }}">
+                                    <select name="return_target" required id="rt-{{ app.id }}"
+                                            onchange="document.getElementById('rb-{{ app.id }}').disabled = !this.value || !document.getElementById('rn-{{ app.id }}').value.trim()">
+                                        <option value="">Return to…</option>
+                                        <option value="applicant">Return to Applicant</option>
+                                        <option value="oidb">Return to OIDB</option>
+                                        <option value="ydyo">Return to YDYO</option>
+                                    </select>
+                                    <textarea name="dean_notes" id="rn-{{ app.id }}" rows="2"
+                                              placeholder="Reason for returning…" required
+                                              oninput="document.getElementById('rb-{{ app.id }}').disabled = !this.value.trim() || !document.getElementById('rt-{{ app.id }}').value"></textarea>
+                                    <button type="submit" class="soft-btn danger-btn" id="rb-{{ app.id }}" disabled>Return</button>
                                 </form>
                             </div>
                             {% else %}

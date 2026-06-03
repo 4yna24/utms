@@ -33,6 +33,27 @@ def check_applicants():
     )
 
 
+_RETURN_TARGET_LABELS = {"applicant": "applicant", "oidb": "OIDB", "ydyo": "YDYO"}
+
+
+@dean_api_bp.route("/return/<int:application_id>", methods=["POST"])
+@role_required("dean")
+def return_application(application_id):
+    """Return application to a previous stage."""
+    target = (request.form.get("return_target") or "").strip()
+    notes = (request.form.get("dean_notes") or "").strip()
+    service = _get_service()
+
+    result = service.return_application(application_id, target, notes)
+
+    if result.success:
+        flash(f"Application returned to {_RETURN_TARGET_LABELS.get(target, target)}.", "success")
+    else:
+        flash(result.error_msg, "error")
+
+    return redirect(url_for("dashboard.index", tab="receive-forward-applications"))
+
+
 @dean_api_bp.route("/forward-to-ygk/<int:application_id>", methods=["POST"])
 @role_required("dean")
 def forward_to_ygk(application_id):

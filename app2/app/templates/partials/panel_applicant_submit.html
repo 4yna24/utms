@@ -69,6 +69,11 @@
                         <input type="text" name="source_university" placeholder="Institution name" value="{{ app.source_university if app else '' }}" required>
                     </label>
                 </div>
+                <div class="form-row-2">
+                    <label>OYSM Points <span class="subline">(optional)</span>
+                        <input type="number" name="oysm_points" min="0" step="0.01" placeholder="e.g. 75.50" value="{{ app.oysm_points if app and app.oysm_points else '' }}">
+                    </label>
+                </div>
             </div>
             <div class="step-nav">
                 <button type="button" class="soft-btn alt prev-step">← Back</button>

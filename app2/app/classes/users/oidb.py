@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any
+import json
+from typing import Any, TYPE_CHECKING
 
 from ...core import OperationResult, ErrorCode
 from ...database import get_application_repository
 from ..interfaces import IReviewer, IDocumentHandler
 from .base import User
+
+if TYPE_CHECKING:
+    from ...services.document_checker import IDocumentChecker
 
 
 class Oidb(User, IReviewer, IDocumentHandler):
@@ -60,11 +64,10 @@ class Oidb(User, IReviewer, IDocumentHandler):
             )
 
     def forward_all_to_ydyo(self) -> OperationResult:
-        """Forward all submitted applications to YDYO. Returns OperationResult."""
+        """Forward all submitted applications to YDYO without document checking."""
         app_repo = get_application_repository()
 
         try:
-            # Get all submitted applications
             result = app_repo.get_by_status("submitted")
             if not result.success:
                 return result
@@ -72,7 +75,6 @@ class Oidb(User, IReviewer, IDocumentHandler):
             apps = result.data or []
             count = len(apps)
 
-            # Update all using repository
             for app in apps:
                 app.status = "forwarded_to_ydyo"
                 add_result = app_repo.add_to_session(app)
@@ -80,7 +82,6 @@ class Oidb(User, IReviewer, IDocumentHandler):
                     app_repo.rollback()
                     return add_result
 
-            # Commit all changes
             commit_result = app_repo.commit()
             if commit_result.success:
                 commit_result.data = {"forwarded_count": count}
@@ -90,6 +91,58 @@ class Oidb(User, IReviewer, IDocumentHandler):
             return OperationResult.error(
                 ErrorCode.DB_ERROR,
                 f"Failed to forward applications: {str(exc)}"
+            )
+
+    def auto_check_and_forward_all(self, checker: "IDocumentChecker | None" = None) -> OperationResult:
+        """
+        Run document checker on every submitted application, store results, and
+        forward those that pass.  Applications with errors stay in 'submitted' status
+        but are marked doc_checker_status='auto_checked' so the UI can show the errors.
+
+        Args:
+            checker: IDocumentChecker implementation.  Defaults to MockDocumentChecker.
+        """
+        if checker is None:
+            from ...services.document_checker import MockDocumentChecker
+            checker = MockDocumentChecker()
+
+        app_repo = get_application_repository()
+        try:
+            result = app_repo.get_by_status_with_documents("submitted")
+            if not result.success:
+                return result
+
+            apps = result.data or []
+            forwarded = 0
+            flagged = 0
+
+            for app in apps:
+                check_result = checker.check_application(app)
+                app.doc_checker_status = "auto_checked"
+                app.doc_checker_errors = json.dumps(
+                    [e.to_dict() for e in check_result.errors]
+                )
+
+                if check_result.passed:
+                    app.status = "forwarded_to_ydyo"
+                    forwarded += 1
+                else:
+                    flagged += 1
+
+                add_result = app_repo.add_to_session(app)
+                if not add_result.success:
+                    app_repo.rollback()
+                    return add_result
+
+            commit_result = app_repo.commit()
+            if commit_result.success:
+                commit_result.data = {"forwarded": forwarded, "flagged": flagged}
+            return commit_result
+        except Exception as exc:
+            app_repo.rollback()
+            return OperationResult.error(
+                ErrorCode.DB_ERROR,
+                f"Auto-check failed: {str(exc)}"
             )
 
     def return_application(self, application_id: int, notes: str) -> OperationResult:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 
 from .. import db
@@ -31,7 +32,12 @@ class ApplicationORM(db.Model):
     target_department = db.Column(db.String(120), nullable=False, default="")
     target_semester = db.Column(db.String(32), nullable=False, default="")
 
+    # Academic scores
     current_gpa = db.Column(db.String(16), nullable=False)
+    # Estimated GPA set by YGK after the intibak (credit transfer) evaluation
+    estimated_gpa = db.Column(db.String(16), nullable=True)
+    # OYSM composite score submitted by the applicant
+    oysm_points = db.Column(db.String(16), nullable=True)
 
     # Workflow
     status = db.Column(db.String(32), nullable=False, default="submitted")
@@ -40,11 +46,28 @@ class ApplicationORM(db.Model):
     prep_school_status = db.Column(db.String(32), nullable=True)
     # Set by Dean when forwarding to departmental YGK
     forwarded_faculty = db.Column(db.String(120), nullable=True)
+    # Set by Dean when returning application; explains reason to receiving role
+    dean_notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    # Document Checker — "needs_manual_check" until auto-check runs; then "auto_checked"
+    doc_checker_status = db.Column(db.String(32), nullable=True, default="needs_manual_check")
+    # JSON list of DocumentCheckError dicts (type, reason, slot, field)
+    doc_checker_errors = db.Column(db.Text, nullable=True)
 
     # Audit trail — auto-set by the before_flush listener in app/__init__.py
     last_edited_by_id = db.Column(db.Integer, nullable=True)
     last_edited_at = db.Column(db.DateTime, nullable=True)
+
+    @property
+    def parsed_checker_errors(self) -> list[dict]:
+        """Return doc_checker_errors as a list of dicts, safe to use in templates."""
+        if not self.doc_checker_errors:
+            return []
+        try:
+            return json.loads(self.doc_checker_errors)
+        except (ValueError, TypeError):
+            return []
 
     applicant = db.relationship("UserORM", back_populates="application")
     documents = db.relationship(

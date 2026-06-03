@@ -54,16 +54,33 @@ def forward_to_ydyo(application_id):
 @oidb_api_bp.route("/forward-all-to-ydyo", methods=["POST"])
 @role_required("oidb")
 def forward_all_to_ydyo():
-    """Forward all documents to YDYO."""
+    """Forward all documents to YDYO (no document checking)."""
     service = _get_service()
-    
     result = service.forward_all_to_ydyo()
-    
     if result.success:
         flash("All applications forwarded to YDYO successfully.", "success")
     else:
         flash(result.error_msg, "error")
-    
+    return redirect(url_for("dashboard.index", tab="check-documents"))
+
+
+@oidb_api_bp.route("/auto-check-and-forward", methods=["POST"])
+@role_required("oidb")
+def auto_check_and_forward():
+    """Run document checker on all submitted applications and forward those that pass."""
+    service = _get_service()
+    result = service.auto_check_and_forward_all()
+    if result.success:
+        data = result.data or {}
+        forwarded = data.get("forwarded", 0)
+        flagged = data.get("flagged", 0)
+        flash(
+            f"Auto-check complete: {forwarded} forwarded to YDYO, "
+            f"{flagged} flagged with errors (require manual review).",
+            "success" if flagged == 0 else "warning",
+        )
+    else:
+        flash(result.error_msg, "error")
     return redirect(url_for("dashboard.index", tab="check-documents"))
 
 

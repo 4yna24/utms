@@ -42,7 +42,9 @@
 
                 <button type="submit">{{ submit_label or 'Login' }}</button>
             </form>
-            <p>Don't have an account? <a href="{{ url_for(register_link_endpoint or 'auth.register') }}">Register here</a>.</p>
+            {% if register_link_endpoint %}
+            <p>Don't have an account? <a href="{{ url_for(register_link_endpoint) }}">Register here</a>.</p>
+            {% endif %}
         </div>
     </section>
 {% endblock %}

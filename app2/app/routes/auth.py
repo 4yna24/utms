@@ -155,50 +155,9 @@ def applicant_login():
 
 @auth_bp.route("/staff/register", methods=["GET", "POST"])
 def staff_register():
-    """Registration dedicated to staff roles."""
-    already_authenticated = _redirect_if_authenticated()
-    if already_authenticated:
-        return already_authenticated
-
-    service = AuthService()
-
-    if request.method == "POST":
-        email = (request.form.get("email") or "").strip().lower()
-        password = request.form.get("password") or ""
-        password_confirm = request.form.get("password_confirm") or ""
-        role = request.form.get("role") or ""
-
-        # Validate role
-        if role not in _STAFF_SLUGS:
-            flash("Invalid role selected.", "error")
-            return redirect(url_for("auth.staff_register"))
-
-        # Validate credentials format
-        result = service.validate_credentials(email, password)
-        if not result.success:
-            flash(result.error_msg, "error")
-            return redirect(url_for("auth.staff_register"))
-
-        # Register user
-        result = service.register(email, password, password_confirm, role=role, check_validity=True)
-        if not result.success:
-            flash(result.error_msg, "error")
-            return redirect(url_for("auth.staff_register"))
-
-        flash("Registration successful. Please login.", "success")
-        return redirect(url_for("auth.staff_login", role=role))
-
-    return _render_register(
-        {
-            "page_title": "Staff Register",
-            "form_title": "Create Staff Account",
-            "submit_label": "Register Staff Account",
-            "show_role_selector": True,
-            "roles": STAFF_ROLE_DEFINITIONS,
-            "role_value": request.args.get("role", ""),
-            "login_link_endpoint": "auth.staff_login",
-        }
-    )
+    """Staff self-registration is disabled — accounts are created by an admin."""
+    flash("Staff accounts are managed by the system administrator. Contact your admin to get an account.", "warning")
+    return redirect(url_for("auth.staff_login"))
 
 
 @auth_bp.route("/staff/login", methods=["GET", "POST"])
@@ -245,7 +204,7 @@ def staff_login():
             "show_role_selector": True,
             "roles": STAFF_ROLE_DEFINITIONS,
             "role_value": request.args.get("role", ""),
-            "register_link_endpoint": "auth.staff_register",
+            "register_link_endpoint": None,
         }
     )
 

@@ -218,6 +218,26 @@ class ApplicationRepository:
             )
 
     @staticmethod
+    def get_by_status_with_documents(status: str) -> OperationResult:
+        """Get applications by status with documents and applicant eager-loaded (needed by document checker)."""
+        try:
+            apps = (
+                ApplicationORM.query.options(
+                    selectinload(ApplicationORM.documents),
+                    selectinload(ApplicationORM.applicant)
+                )
+                .filter_by(status=status)
+                .order_by(ApplicationORM.created_at.desc())
+                .all()
+            )
+            return OperationResult.ok(data=apps)
+        except Exception as exc:
+            return OperationResult.error(
+                ErrorCode.DB_ERROR,
+                f"Failed to fetch applications: {str(exc)}"
+            )
+
+    @staticmethod
     def add_to_session(application: ApplicationORM) -> OperationResult:
         """Add application to session without committing (for batch operations)."""
         try:

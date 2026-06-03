@@ -60,6 +60,7 @@ class Applicant(User, IDocumentHandler):
             "current_gpa": (form.get("current_gpa") or "").strip(),
             "source_university": (form.get("source_university") or "").strip(),
             "is_currently_enrolled": True,
+            "oysm_points": (form.get("oysm_points") or "").strip() or None,
         }
 
     @staticmethod
@@ -196,6 +197,9 @@ class Applicant(User, IDocumentHandler):
                 setattr(application, field, value)
             application.status = "submitted"
             application.oidb_notes = None
+            # Resubmission invalidates any previous checker result
+            application.doc_checker_status = "needs_manual_check"
+            application.doc_checker_errors = None
 
             # Delete old documents
             old_docs = list(application.documents)

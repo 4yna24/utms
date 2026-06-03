@@ -22,7 +22,7 @@ app/
 │   │   ├── base.py     ← Abstract User class
 │   │   ├── admin.py        ← Admin role (user mgmt, config, DB backup/restore)
 │   │   ├── applicant.py    ← Applicant role (submit, track)
-│   │   ├── dean.py         ← DeanOffice role (review, forward)
+│   │   ├── dean.py         ← DeanOffice role (review, return to applicant/OIDB/YDYO, forward to YGK)
 │   │   ├── oidb.py         ← Oidb role (document verification)
 │   │   ├── ydyo.py         ← Ydyo role (prep school marking)
 │   │   ├── ygk.py          ← YGK role (approval)
@@ -42,7 +42,7 @@ app/
 │   ├── admin.py        ← Admin API (role changes, backup, restore)
 │   ├── auth.py         ← Login, register endpoints (includes /auth/admin/login)
 │   ├── applicant.py    ← Submit, resubmit, cancel (uses ApplicationService)
-│   ├── dean.py         ← Review, forward to YGK
+│   ├── dean.py         ← Review, return to applicant/OIDB/YDYO, forward to YGK
 │   ├── oidb.py         ← Verify docs, forward to YDYO
 │   ├── ydyo.py         ← Mark prep school, forward
 │   ├── ygk.py          ← Approve applications
@@ -401,7 +401,7 @@ New columns require two changes or existing databases will break on startup:
 
 The helper runs `ALTER TABLE application ADD COLUMN …` for any missing column at startup, keeping existing SQLite files compatible.
 
-Columns currently managed by this helper: `id_number`, `target_program`, `target_semester`, `is_currently_enrolled`, `oidb_notes`, `prep_school_status`, `forwarded_faculty`, `last_edited_by_id`, `last_edited_at`.
+Columns currently managed by this helper: `id_number`, `target_program`, `target_semester`, `is_currently_enrolled`, `oidb_notes`, `prep_school_status`, `forwarded_faculty`, `last_edited_by_id`, `last_edited_at`, `estimated_gpa`, `oysm_points`, `doc_checker_status`, `doc_checker_errors`, `dean_notes`.
 
 ---
 
@@ -435,7 +435,7 @@ All interactive behavior for the dashboard lives here:
 | `/auth/applicant/login` | Applicants | No role selector |
 | `/auth/applicant/register` | Applicants | Open self-registration |
 | `/auth/staff/login` | Staff roles (oidb, dean, ygk, ydyo) | Role dropdown; role validated against `_STAFF_SLUGS` |
-| `/auth/staff/register` | Staff roles | Role dropdown |
+| `/auth/staff/register` | Disabled | Redirects to staff login with message; staff accounts created via admin |
 | `/auth/admin/login` | Admin only | No role selector, no register link, not linked from main page |
 
 Admin is excluded from `_STAFF_SLUGS` — attempting to log in as admin via the staff login route returns "Invalid role selected."

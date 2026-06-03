@@ -73,6 +73,11 @@ Never use the old bare names (`User`, `Application`, `ApplicationDocument`).
 
 Admin is a special role for managing the software. It is NOT in `ROLE_DEFINITIONS`. Login at `/auth/admin/login`. Create the first account with `flask init-admin`. See `codebase_guide.md` for the full admin capability list.
 
+**TODO**: Staff account creation should be possible from the Admin dashboard (User Management tab).
+Staff self-registration (`/auth/staff/register`) is intentionally disabled — only admin can provision
+new staff accounts. Implement an "Add User" form in `panel_admin_users.html` that POSTs to a new
+`POST /api/admin/users/create` route wired to a new `Admin.create_user(email, password, role)` method.
+
 ## Auto-fingerprint
 
 Any time an `ApplicationORM` row is committed, `last_edited_by_id` and `last_edited_at` are set automatically by the `before_flush` event listener in `app/__init__.py`. No business code touches these fields.
