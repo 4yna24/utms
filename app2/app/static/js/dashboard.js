@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return r.text();
             })
             .then(html => {
-                panel.innerHTML = html;
+                panel.innerHTML = `<div class="tab-content-wrap">${html}</div>`;
                 loaded[panel.id] = true;
                 pushUrl(slug, page);
                 initPanelInteractions(panel, slug);
