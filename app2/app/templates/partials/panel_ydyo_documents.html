@@ -1,4 +1,8 @@
 {% if ydyo_applications %}
+    <div class="panel-tab-state" hidden
+         data-filter="{{ active_filter }}"
+         data-sort-col="{{ active_sort_col if active_sort_col is not none else '' }}"
+         data-sort-dir="{{ active_sort_dir }}"></div>
     <div class="oidb-header-bar">
         <div class="stats-row">
             <span class="stat-chip chip-total">Total: {{ status_counts.total }}</span>
@@ -20,7 +24,7 @@
                     <th data-sort="2">Program</th>
                     <th data-sort="3">Semester</th>
                     <th data-sort="4">Eng. Doc</th>
-                    <th data-sort="5">Doc Check</th>
+                    <th data-sort="5">Doc Checker</th>
                     <th data-sort="6">Submitted</th>
                     <th></th>
                 </tr>

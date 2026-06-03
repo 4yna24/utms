@@ -1,10 +1,14 @@
 {% if oidb_applications %}
+    <div class="panel-tab-state" hidden
+         data-filter="{{ active_filter }}"
+         data-sort-col="{{ active_sort_col if active_sort_col is not none else '' }}"
+         data-sort-dir="{{ active_sort_dir }}"></div>
     <div class="oidb-header-bar">
         <div class="stats-row" data-filter-table="oidb-table">
-            <span class="stat-chip chip-total" data-filter="all">Total: {{ status_counts.total }}</span>
-            <span class="stat-chip chip-submitted" data-filter="submitted">Submitted: {{ status_counts.submitted }}</span>
-            <span class="stat-chip chip-forwarded" data-filter="forwarded_to_ydyo">Forwarded: {{ status_counts.forwarded_to_ydyo }}</span>
-            <span class="stat-chip chip-returned" data-filter="returned">Returned: {{ status_counts.returned }}</span>
+            <span class="stat-chip chip-total{% if active_filter == 'all' %} chip-active{% endif %}" data-filter="all">Total: {{ status_counts.total }}</span>
+            <span class="stat-chip chip-submitted{% if active_filter == 'submitted' %} chip-active{% endif %}" data-filter="submitted">Submitted: {{ status_counts.submitted }}</span>
+            <span class="stat-chip chip-forwarded{% if active_filter == 'forwarded_to_ydyo,forwarded_to_dean' %} chip-active{% endif %}" data-filter="forwarded_to_ydyo,forwarded_to_dean">Forwarded: {{ status_counts.forwarded_to_ydyo + status_counts.forwarded_to_dean }}</span>
+            <span class="stat-chip chip-returned{% if active_filter == 'returned' %} chip-active{% endif %}" data-filter="returned">Returned: {{ status_counts.returned }}</span>
         </div>
         <form method="POST" action="{{ url_for('oidb_api.auto_check_and_forward') }}" style="display:inline;">
             <button type="submit" class="soft-btn compact"
@@ -23,7 +27,7 @@
                     <th data-sort="2">Program</th>
                     <th data-sort="3">Semester</th>
                     <th data-sort="4">Status</th>
-                    <th data-sort="5">Doc Check</th>
+                    <th data-sort="5">Doc Checker</th>
                     <th data-sort="6">Submitted</th>
                     <th></th>
                 </tr>
@@ -124,7 +128,7 @@
                                             {%- endfor -%}
                                             {%- set doc_errs = checker_errors | selectattr('type', 'equalto', 'document') | selectattr('slot', 'equalto', slot_def.slot) | list -%}
                                             <li class="doc-item{% if doc_errs %} doc-item-error{% endif %}">
-                                                <span class="doc-slot-label">{{ slot_def.label }}{% if slot_def.optional %} <em>(optional)</em>{% endif %}</span>
+                                                <span class="doc-slot-label">{{ slot_def.label }}</span>
                                                 {% if ns.found %}
                                                     <a class="soft-btn compact alt" href="{{ url_for('oidb_api.view_document', doc_id=ns.found.id) }}" target="_blank">View</a>
                                                     {% if doc_errs %}

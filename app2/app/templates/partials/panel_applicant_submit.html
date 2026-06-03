@@ -70,7 +70,7 @@
                     </label>
                 </div>
                 <div class="form-row-2">
-                    <label>OYSM Points <span class="subline">(optional)</span>
+                    <label>OYSM Points
                         <input type="number" name="oysm_points" min="0" step="0.01" placeholder="e.g. 75.50" value="{{ app.oysm_points if app and app.oysm_points else '' }}">
                     </label>
                 </div>
@@ -87,7 +87,7 @@
                     {% for slot in document_slots %}
                         {% set optional = slot.optional if slot.optional is defined else false %}
                         <label class="doc-upload-label">
-                            <span class="doc-upload-name">{{ slot.label }}{% if optional %} <span class="subline">(optional)</span>{% endif %}</span>
+                            <span class="doc-upload-name">{{ slot.label }}</span>
                             <span class="subline" style="font-size:11px">PDF, leave empty to skip</span>
                             <input type="file" name="document_{{ slot.slot }}" accept="application/pdf,.pdf">
                             {% if app %}

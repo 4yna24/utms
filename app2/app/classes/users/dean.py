@@ -100,6 +100,11 @@ class DeanOffice(User, IReviewer):
         app.status = _target_status[target]
         return app_repo.update(app)
 
+    def get_document(self, doc_id: int) -> OperationResult:
+        """Retrieve a document by ID for viewing."""
+        app_repo = get_application_repository()
+        return app_repo.get_document(doc_id)
+
     def forward_all_to_ygk(self) -> OperationResult:
         """Forward all pending applications to YGK. Returns OperationResult."""
         return OperationResult.error(

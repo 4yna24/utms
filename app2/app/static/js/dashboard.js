@@ -52,9 +52,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function fetchTabContent(panel, slug, page) {
+    function fetchTabContent(panel, slug, page, filterState) {
+        const state = filterState || {};
+        const filter = state.filter || 'all';
+        const sortCol = (state.sortCol !== undefined && state.sortCol !== null) ? state.sortCol : null;
+        const sortDir = state.sortDir || 'asc';
+
+        let url = `/dashboard/tab/${slug}?page=${page}`;
+        if (filter !== 'all') url += `&filter=${encodeURIComponent(filter)}`;
+        if (sortCol !== null) url += `&sort_col=${sortCol}&sort_dir=${sortDir}`;
+
         panel.innerHTML = '<div class="tab-loading-placeholder">Loading…</div>';
-        fetch(`/dashboard/tab/${slug}?page=${page}`)
+        fetch(url)
             .then(r => {
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
                 return r.text();
@@ -89,12 +98,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── Wire up everything inside a freshly loaded panel ──
     function initPanelInteractions(panel, slug) {
+        // Read server-rendered filter/sort state (present on paginated staff panels)
+        const stateEl = panel.querySelector('.panel-tab-state');
+        const filterState = stateEl ? {
+            filter: stateEl.dataset.filter || 'all',
+            sortCol: stateEl.dataset.sortCol !== '' ? parseInt(stateEl.dataset.sortCol) : null,
+            sortDir: stateEl.dataset.sortDir || 'asc',
+        } : { filter: 'all', sortCol: null, sortDir: 'asc' };
+
+        // Re-apply sort indicator from server state
+        if (stateEl && filterState.sortCol !== null) {
+            const th = panel.querySelector(`table[id] thead th[data-sort="${filterState.sortCol}"]`);
+            if (th) {
+                const ind = document.createElement('span');
+                ind.className = 'sort-ind';
+                ind.textContent = filterState.sortDir === 'asc' ? ' ▲' : ' ▼';
+                ind.style.fontSize = '10px';
+                th.appendChild(ind);
+            }
+        }
+
         // Pagination buttons
         panel.querySelectorAll('.page-btn[data-page]').forEach(btn => {
             btn.addEventListener('click', () => {
                 const page = parseInt(btn.dataset.page, 10);
                 loaded[panel.id] = false;
-                fetchTabContent(panel, slug, page);
+                fetchTabContent(panel, slug, page, filterState);
             });
         });
 
@@ -117,24 +146,46 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-        // Chip filters (filter rows in current page only)
+        // Chip filters: server-side re-fetch on paginated panels, client-side otherwise
         panel.querySelectorAll('.stats-row[data-filter-table]').forEach(group => {
             const table = panel.querySelector('#' + group.dataset.filterTable);
-            if (!table) return;
             const chips = group.querySelectorAll('[data-filter]');
             chips.forEach(chip => {
                 chip.addEventListener('click', function () {
-                    const alreadyActive = this.classList.contains('chip-active');
-                    chips.forEach(c => c.classList.remove('chip-active'));
-                    const filter = alreadyActive ? 'all' : this.dataset.filter;
-                    if (!alreadyActive) this.classList.add('chip-active');
-                    filterTableRows(table, filter);
+                    if (stateEl) {
+                        const alreadyActive = this.classList.contains('chip-active');
+                        const newFilter = alreadyActive ? 'all' : this.dataset.filter;
+                        loaded[panel.id] = false;
+                        fetchTabContent(panel, slug, 1, { ...filterState, filter: newFilter });
+                    } else {
+                        const alreadyActive = this.classList.contains('chip-active');
+                        chips.forEach(c => c.classList.remove('chip-active'));
+                        const filter = alreadyActive ? 'all' : this.dataset.filter;
+                        if (!alreadyActive) this.classList.add('chip-active');
+                        if (table) filterTableRows(table, filter);
+                    }
                 });
             });
         });
 
-        // Sortable columns
-        panel.querySelectorAll('table[id]').forEach(table => initSortableTable(table));
+        // Sortable columns: server-side re-fetch on paginated panels, client-side otherwise
+        panel.querySelectorAll('table[id]').forEach(table => {
+            if (stateEl) {
+                table.querySelectorAll('thead th[data-sort]').forEach(th => {
+                    th.style.cursor = 'pointer';
+                    th.title = 'Click to sort';
+                    th.addEventListener('click', function () {
+                        const col = parseInt(this.dataset.sort);
+                        const isSameCol = filterState.sortCol === col;
+                        const dir = (isSameCol && filterState.sortDir === 'asc') ? 'desc' : 'asc';
+                        loaded[panel.id] = false;
+                        fetchTabContent(panel, slug, 1, { ...filterState, sortCol: col, sortDir: dir });
+                    });
+                });
+            } else {
+                initSortableTable(table);
+            }
+        });
 
         // Tab-jump buttons inside lazy-loaded content (e.g. applicant track → submit)
         panel.querySelectorAll('.tab-jump').forEach(b => {

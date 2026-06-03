@@ -89,6 +89,20 @@ FLASK_APP=run.py flask init-admin            # idempotent — create admin@admin
 FLASK_APP=run.py flask seed-db [--yes]       # wipe + reseed test data
 ```
 
+## Status Badge CSS Convention
+
+Status badges use `.status-badge.status-<status>` classes. All `forwarded_*` statuses are **green** globally. **Exception**: `.status-pending-dean` (yellow) is used only in `panel_dean_applications.html` for `forwarded_to_dean` entries — pending from the dean's perspective. Never change a global `.status-*` rule for a single-role display need; add a role-specific class instead.
+
+## Document Slots
+
+`APPLICATION_DOCUMENT_SLOTS` in `config.py` is the single source of truth for upload slots. Current slots: Student Certificate (1), Transcript (2), OYSM Points (3), English Proficiency Certificate (4, optional), OYSM Certificate (5, optional). Optional slots skip the `(optional)` display label but remain non-required on submit. Do not add the `(optional)` text back.
+
+## Dean Document Viewing
+
+Dean can view documents via `GET /api/dean/view-document/<doc_id>` (same pattern as OIDB/YDYO). `DeanOffice.get_document(doc_id)` is the class method. The Dean expanded row shows:
+- Doc Checker result banner (errors/passed/not-yet-run) reflecting OIDB's last checker run.
+- Per-slot document list with **View** links, using `document_slots` from config.
+
 ## Phases Completed
 
 | Phase | What it did |

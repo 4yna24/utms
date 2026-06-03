@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, session, url_for
 
 from ..classes import DeanOffice
 from ..config import AVAILABLE_FACULTIES
@@ -69,6 +69,17 @@ def forward_to_ygk(application_id):
         flash(result.error_msg, "error")
     
     return redirect(url_for("dashboard.index", tab="receive-forward-applications"))
+
+
+@dean_api_bp.route("/view-document/<int:doc_id>", methods=["GET"])
+@role_required("dean")
+def view_document(doc_id):
+    """View application document."""
+    result = _get_service().get_document(doc_id)
+    if not result.success or not result.data:
+        abort(404)
+    doc = result.data
+    return send_file(doc.file_path, mimetype="application/pdf", as_attachment=False)
 
 
 @dean_api_bp.route("/forward-all-to-ygk", methods=["POST"])

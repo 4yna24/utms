@@ -16,7 +16,7 @@ APPLICATION_UPLOAD_SUBDIR = "uploads/applications"
 APPLICATION_DOCUMENT_SLOTS = [
     {"slot": 1, "label": "Student Certificate"},
     {"slot": 2, "label": "Transcript"},
-    {"slot": 3, "label": "YKS Score Report"},
+    {"slot": 3, "label": "OYSM Points"},
     {"slot": 4, "label": "English Proficiency Certificate", "optional": True},
     {"slot": 5, "label": "OYSM Certificate", "optional": True},
 ]

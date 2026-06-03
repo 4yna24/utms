@@ -337,9 +337,23 @@ Slugs are computed from tab titles by `_slugify()` in `dashboard.py`:
 - **Fetch errors** (network down, HTTP 4xx/5xx): `dashboard.js` calls `showToast()` which creates a dismissible toast using the same `.flash-msg` CSS classes as server-rendered flash messages. Toasts auto-dismiss after 5 seconds.
 - **Server-rendered flash messages** (after form actions): rendered by `base.html`, auto-dismissed after 4 seconds by the same JS.
 
-### Pagination
+### Pagination, filtering, and sorting
 
-`_get_tab_data()` uses `_PER_PAGE = 10`. It fetches all records from the role class, counts by status for global chip totals, then slices for the requested page. Partials receive `pagination` dict and `status_counts` dict.
+`_get_tab_data()` uses `_PER_PAGE = 10`. For each paginated staff panel it:
+
+1. Fetches all records from the role class.
+2. Computes `status_counts` on the **full** list — chip totals always reflect the complete dataset.
+3. Calls `_filter_apps(apps, filter_status)` — supports a single status string **or** comma-separated values (e.g. `"forwarded_to_ydyo,forwarded_to_dean"` for the OIDB "Forwarded" chip).
+4. Calls `_sort_apps(apps, sort_col, sort_dir, col_map)` — numeric-aware sort using a `(bucket, numeric, string)` tuple key so integer IDs sort correctly as numbers, not strings.
+5. Slices for the requested page.
+
+Filter and sort travel as query params: `?filter=submitted&sort_col=1&sort_dir=asc`. The JS sends these on every chip click and column-header click (server-side re-fetch replaces DOM-only manipulation), so the filter/sort applies to the **full dataset** before pagination, not just the current page.
+
+**Panel state element**: Every paginated staff panel partial embeds a hidden `<div class="panel-tab-state" data-filter="…" data-sort-col="…" data-sort-dir="…">` at the top. `dashboard.js` reads this after each fetch to carry filter/sort state into the next chip click, sort click, or page-navigation click. Panels without this element (e.g. admin tables) fall back to the old client-side filter/sort.
+
+**Active chip highlighting**: The server renders the active chip with `chip-active` class and re-renders the sort indicator span on the active column header — no JS is needed to restore visual state after a re-fetch.
+
+Partials receive: `pagination` dict, `status_counts` dict, `active_filter` str, `active_sort_col` int|None, `active_sort_dir` str.
 
 **Admin and ROLE_DEFINITIONS**: Admin tabs live in `PHASE1_TABS["admin"]` but `ROLE_DEFINITIONS` does NOT include admin. This means admin's display name won't resolve through the normal lookup — `dashboard.py` handles this with a local `_ROLE_DISPLAY` dict that adds `"admin": "Administrator"`.
 
@@ -355,6 +369,18 @@ Slugs are computed from tab titles by `_slugify()` in `dashboard.py`:
 - `AVAILABLE_PROGRAMS` — applicant target programs
 - `AVAILABLE_SEMESTERS` — available intake semesters
 - `AVAILABLE_FACULTIES` — faculty names
+
+**Document slots** (`APPLICATION_DOCUMENT_SLOTS`) — ordered list of `{slot, label, optional?}` dicts used by all submit and review screens. Current slots:
+
+| Slot | Label | Optional |
+|------|-------|---------|
+| 1 | Student Certificate | No |
+| 2 | Transcript | No |
+| 3 | OYSM Points | No |
+| 4 | English Proficiency Certificate | Yes |
+| 5 | OYSM Certificate | Yes |
+
+Optional slots remain technically optional (not validated on submit) but the `(optional)` text label is intentionally hidden from the UI — do not add it back.
 
 **Feature flags** — `APPLICATION_SUBMISSION_PERIOD_OPEN`, `APPLICATION_CANCELLATION_ALLOWED`, `APPLICATION_RESUBMISSION_ALLOWED`. Flip these to open/close periods without touching logic.
 
@@ -405,6 +431,16 @@ Columns currently managed by this helper: `id_number`, `target_program`, `target
 
 ---
 
+## Status Badge CSS Convention
+
+Status badges use `.status-badge.status-<status>` classes defined in `main.css`. The class name mirrors the `ApplicationORM.status` value exactly (underscores included). All `forwarded_*` statuses are **green** — they represent progression. `submitted` and `returned` are yellow and red respectively.
+
+**Exception — Dean panel only**: `forwarded_to_dean` appears yellow inside the Dean's own panel (because it is *pending* from the dean's perspective). This is achieved with a separate `.status-pending-dean` class applied only in `panel_dean_applications.html`. The global `.status-forwarded_to_dean` rule stays green so other panels (OIDB, YDYO) see the correct colour.
+
+**Rule**: Never change a global `.status-*` rule to solve a role-specific display need. Add a role-specific override class instead.
+
+---
+
 ## Role Implementation Checklist
 
 | Role | Class file | Route file | Dashboard partial | `_get_role_data` branch |
@@ -412,7 +448,7 @@ Columns currently managed by this helper: `id_number`, `target_program`, `target
 | Admin | `classes/users/admin.py` | `routes/admin.py` | `panel_admin_*.html` (3 tabs) | ✓ |
 | Applicant | `classes/users/applicant.py` | `routes/applicant.py` | `panel_applicant_*.html` | ✓ |
 | OIDB | `classes/users/oidb.py` | `routes/oidb.py` | `panel_oidb_documents.html` | ✓ |
-| Dean | `classes/users/dean.py` | `routes/dean.py` | `panel_dean_applications.html` | ✓ |
+| Dean | `classes/users/dean.py` | `routes/dean.py` | `panel_dean_applications.html` | ✓ | `get_document()`, view-document route |
 | YDYO | `classes/users/ydyo.py` | `routes/ydyo.py` | `panel_ydyo_documents.html` | ✓ |
 | YGK | `classes/users/ygk.py` | `routes/ygk.py` | — (partial: None) | — |
 

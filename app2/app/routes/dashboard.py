@@ -53,38 +53,87 @@ def _status_counts(apps: list, statuses: list[str]) -> dict:
     return counts
 
 
-def _get_tab_data(role_slug: str, tab_slug: str, page: int, user_id: int, email: str) -> dict:
+def _filter_apps(apps: list, filter_status: str) -> list:
+    if not filter_status or filter_status == "all":
+        return apps
+    statuses = set(filter_status.split(","))
+    return [a for a in apps if a.status in statuses]
+
+
+def _sort_apps(apps: list, sort_col, sort_dir: str, col_map: dict) -> list:
+    if sort_col is None or sort_col not in col_map:
+        return apps
+    attr = col_map[sort_col]
+    reverse = sort_dir == "desc"
+    def key(a):
+        v = getattr(a, attr, None)
+        if v is None:
+            return (1, 0, "")
+        if isinstance(v, (int, float)):
+            return (0, v, "")
+        if hasattr(v, "isoformat"):
+            return (0, 0, v.isoformat())
+        return (0, 0, str(v).lower())
+    return sorted(apps, key=key, reverse=reverse)
+
+
+def _get_tab_data(
+    role_slug: str, tab_slug: str, page: int, user_id: int, email: str,
+    filter_status: str = "all", sort_col=None, sort_dir: str = "asc",
+) -> dict:
     """Return template context for one tab, with pagination where applicable."""
     per_page = _PER_PAGE
     offset = (page - 1) * per_page
 
     if role_slug == "oidb" and tab_slug == "check-documents":
         from ..classes import Oidb
-        apps = Oidb(user_id, email, "oidb").get_pending_applicants()
+        all_apps = Oidb(user_id, email, "oidb").get_pending_applicants()
+        col_map = {0: "id", 1: "full_name", 2: "target_program", 3: "target_semester",
+                   4: "status", 5: "doc_checker_status", 6: "created_at"}
+        status_counts = _status_counts(all_apps, ["submitted", "forwarded_to_ydyo", "forwarded_to_dean", "returned"])
+        apps = _sort_apps(_filter_apps(all_apps, filter_status), sort_col, sort_dir, col_map)
         return {
             "oidb_applications": apps[offset:offset + per_page],
             "document_slots": APPLICATION_DOCUMENT_SLOTS,
             "pagination": _build_pagination(len(apps), page, per_page),
-            "status_counts": _status_counts(apps, ["submitted", "forwarded_to_ydyo", "returned"]),
+            "status_counts": status_counts,
+            "active_filter": filter_status,
+            "active_sort_col": sort_col,
+            "active_sort_dir": sort_dir,
         }
 
     if role_slug == "dean" and tab_slug == "receive-forward-applications":
         from ..classes import DeanOffice
-        apps = DeanOffice(user_id, email, "dean").get_pending_applicants()
+        all_apps = DeanOffice(user_id, email, "dean").get_pending_applicants()
+        col_map = {0: "id", 1: "full_name", 2: "target_program", 3: "target_semester",
+                   4: "status", 5: "created_at"}
+        status_counts = _status_counts(all_apps, ["forwarded_to_dean", "forwarded_to_ygk"])
+        apps = _sort_apps(_filter_apps(all_apps, filter_status), sort_col, sort_dir, col_map)
         return {
             "dean_applications": apps[offset:offset + per_page],
             "available_faculties": AVAILABLE_FACULTIES,
+            "document_slots": APPLICATION_DOCUMENT_SLOTS,
             "pagination": _build_pagination(len(apps), page, per_page),
-            "status_counts": _status_counts(apps, ["forwarded_to_dean", "forwarded_to_ygk"]),
+            "status_counts": status_counts,
+            "active_filter": filter_status,
+            "active_sort_col": sort_col,
+            "active_sort_dir": sort_dir,
         }
 
     if role_slug == "ydyo" and tab_slug == "set-prep-school-status":
         from ..classes import Ydyo
-        apps = Ydyo(user_id, email, "ydyo").get_applications()
+        all_apps = Ydyo(user_id, email, "ydyo").get_applications()
+        col_map = {0: "id", 1: "full_name", 2: "target_program", 3: "target_semester",
+                   5: "doc_checker_status", 6: "created_at"}
+        status_counts = _status_counts(all_apps, ["forwarded_to_ydyo"])
+        apps = _sort_apps(_filter_apps(all_apps, filter_status), sort_col, sort_dir, col_map)
         return {
             "ydyo_applications": apps[offset:offset + per_page],
             "pagination": _build_pagination(len(apps), page, per_page),
-            "status_counts": _status_counts(apps, ["forwarded_to_ydyo"]),
+            "status_counts": status_counts,
+            "active_filter": filter_status,
+            "active_sort_col": sort_col,
+            "active_sort_dir": sort_dir,
         }
 
     if role_slug == "applicant" and tab_slug == "track-application":
@@ -172,6 +221,9 @@ def tab_content(tab_slug: str):
     user_id = session.get("user_id")
     email = session.get("user_email")
     page = max(1, request.args.get("page", 1, type=int))
+    filter_status = request.args.get("filter", "all")
+    sort_col = request.args.get("sort_col", None, type=int)
+    sort_dir = request.args.get("sort_dir", "asc")
 
     tabs = _enrich_tabs(PHASE1_TABS.get(role_slug, []))
     tab = next((t for t in tabs if t["slug"] == tab_slug), None)
@@ -180,5 +232,5 @@ def tab_content(tab_slug: str):
     if not tab.get("partial"):
         return "<p class='subline'>This section will be available in a future phase.</p>"
 
-    data = _get_tab_data(role_slug, tab_slug, page, user_id, email)
+    data = _get_tab_data(role_slug, tab_slug, page, user_id, email, filter_status, sort_col, sort_dir)
     return render_template(tab["partial"], **data)
