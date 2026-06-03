@@ -120,16 +120,16 @@ PHASE1_TABS = {
     ],
     "ygk": [
         {
-            "title": "Check Applicants",
-            "description": "Applicant list for evaluation.",
+            "title": "Check Applications",
+            "description": "Applications forwarded to your department for evaluation.",
             "endpoint": "ygk_api.check_applicants",
-            "partial": None,
+            "partial": "partials/panel_ygk_check_applications.html",
         },
         {
             "title": "Intibak Table",
-            "description": "View and edit intibak rows.",
+            "description": "Parallel transfer credit matching for applicants.",
             "endpoint": "ygk_api.intibak_table",
-            "partial": None,
+            "partial": "partials/panel_ygk_intibak.html",
         },
     ],
     "ydyo": [

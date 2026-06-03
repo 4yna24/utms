@@ -1,0 +1,91 @@
+{% if ygk_applications %}
+<div class="oidb-header-bar">
+    <div class="stats-row">
+        <span class="stat-chip chip-total chip-active">Total: {{ ygk_applications|length }}</span>
+    </div>
+</div>
+
+<div class="app-table-wrap">
+    <table class="app-table" id="ygk-table">
+        <thead>
+            <tr>
+                <th data-sort="0">#</th>
+                <th data-sort="1">Name</th>
+                <th data-sort="2">Program</th>
+                <th data-sort="3">University</th>
+                <th data-sort="4">GPA</th>
+                <th data-sort="5">Semester</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for app in ygk_applications %}
+            <tr class="app-row-header" data-app-id="{{ app.id }}" data-status="{{ app.status }}">
+                <td>{{ app.id }}</td>
+                <td>{{ app.full_name }}</td>
+                <td>{{ app.target_program or app.target_department }}</td>
+                <td>{{ app.source_university or '—' }}</td>
+                <td>{{ app.current_gpa }}</td>
+                <td>{{ app.target_semester or '—' }}</td>
+                <td style="display:flex; gap:6px; align-items:center;">
+                    <button class="soft-btn compact alt expand-btn" type="button" data-app-id="{{ app.id }}">Details</button>
+                    <button class="soft-btn compact tab-jump" type="button"
+                            data-target="panel-2"
+                            data-tab-slug="intibak-table"
+                            data-select-app="{{ app.id }}">Intibak</button>
+                </td>
+            </tr>
+            <tr class="app-row-expand" id="expand-{{ app.id }}" hidden>
+                <td colspan="7">
+                    <div class="expand-content">
+                        <div class="expand-cols">
+                            <div>
+                                <div class="section-heading">Applicant Details</div>
+                                <div class="detail-grid">
+                                    <span class="detail-label">Full Name</span><span>{{ app.full_name }}</span>
+                                    <span class="detail-label">ID Number</span><span>{{ app.id_number or app.student_number or '—' }}</span>
+                                    <span class="detail-label">GPA</span><span>{{ app.current_gpa }}</span>
+                                    <span class="detail-label">University</span><span>{{ app.source_university or '—' }}</span>
+                                    <span class="detail-label">Target Program</span><span>{{ app.target_program or app.target_department or '—' }}</span>
+                                    <span class="detail-label">Semester</span><span>{{ app.target_semester or '—' }}</span>
+                                    {% if app.prep_school_status %}
+                                    <span class="detail-label">Prep School</span><span>{{ app.prep_school_status }}</span>
+                                    {% endif %}
+                                    {% if app.forwarded_faculty %}
+                                    <span class="detail-label">Faculty</span><span>{{ app.forwarded_faculty }}</span>
+                                    {% endif %}
+                                    {% if app.oidb_notes %}
+                                    <span class="detail-label">OIDB Notes</span><span>{{ app.oidb_notes }}</span>
+                                    {% endif %}
+                                    {% if app.dean_notes %}
+                                    <span class="detail-label">Dean Notes</span><span>{{ app.dean_notes }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div>
+                                <div class="section-heading">Actions</div>
+                                <button class="soft-btn tab-jump" type="button"
+                                        data-target="panel-2"
+                                        data-tab-slug="intibak-table"
+                                        data-select-app="{{ app.id }}"
+                                        style="width:100%; margin-bottom:8px;">
+                                    Open Intibak Table →
+                                </button>
+                                <p class="subline" style="font-size:12px; color:#6b7280;">
+                                    Opens the parallel transfer course-matching table for this applicant.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div style="text-align:center; padding:48px 20px;">
+    <p class="subline">No applications have been forwarded to YGK yet.</p>
+    <p style="font-size:12px; color:#9ca3af; margin-top:8px;">Applications appear here once the Dean's office forwards them.</p>
+</div>
+{% endif %}

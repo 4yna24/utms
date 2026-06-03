@@ -1,0 +1,137 @@
+{# Data blobs read by initIntibakPanel() in dashboard.js #}
+<div id="intibak-curriculum-data" hidden data-json='{{ curriculum_json }}'></div>
+<div id="intibak-apps-data" hidden data-json='{{ apps_json }}'></div>
+
+{% if ygk_applications %}
+
+{# ── Applicant selector ── #}
+<div class="intibak-selector-bar">
+    <label for="intibak-app-selector">Applicant:</label>
+    <select id="intibak-app-selector">
+        {% for app in ygk_applications %}
+        <option value="{{ app.id }}">{{ app.full_name }} — {{ app.target_program or app.target_department }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+{# ── Applicant info bar ── #}
+<div class="intibak-app-bar" id="intibak-app-bar" style="display:none;">
+    <div style="flex:1;">
+        <div class="intibak-app-bar-name" id="bar-name">—</div>
+        <div class="intibak-app-bar-meta">
+            <span id="bar-univ">—</span>
+            &nbsp;→&nbsp;
+            <strong id="bar-program">—</strong>
+        </div>
+    </div>
+    <a id="bar-transcript-btn" class="soft-btn compact" href="#" target="_blank" style="display:none;">
+        View Transcript
+    </a>
+    <span id="bar-no-transcript" class="intibak-meta" style="display:none;">No transcript uploaded</span>
+</div>
+
+{# ── Connect controls ── #}
+<div class="intibak-connect-bar">
+    <button class="soft-btn compact" id="connect-btn" type="button">Connect Courses</button>
+    <button class="soft-btn compact" id="confirm-connect-btn" type="button" style="display:none; background:#059669; color:#fff; border-color:#059669;">Confirm Connection</button>
+    <button class="soft-btn compact alt" id="cancel-connect-btn" type="button" style="display:none;">Cancel</button>
+    <span class="intibak-connect-hint" id="connect-hint" style="display:none;">
+        Select rows from the left <strong>and</strong> right tables, then press Confirm.
+    </span>
+</div>
+
+{# ── Two-column intibak layout ── #}
+<div class="intibak-layout">
+
+    {# Left: Applicant's previous courses #}
+    <div class="intibak-panel">
+        <div class="intibak-panel-header">
+            <span>Previous University Courses</span>
+            <span class="intibak-meta">Credits &amp; AKTS</span>
+        </div>
+        <table class="intibak-table">
+            <thead>
+                <tr>
+                    <th style="width:28px;"></th>
+                    <th>Course Name</th>
+                    <th style="width:60px;">Credits</th>
+                    <th style="width:60px;">AKTS</th>
+                    <th style="width:64px;">Grade</th>
+                </tr>
+            </thead>
+            <tbody id="intibak-left-tbody">
+                <tr class="intibak-empty-row">
+                    <td colspan="4" style="text-align:center; color:#9ca3af; padding:20px; font-size:13px;">
+                        Press + to add courses
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="intibak-add-row">
+            <button class="soft-btn compact" id="add-left-row" type="button">+ Add Row</button>
+        </div>
+    </div>
+
+    {# Right: This university's curriculum courses #}
+    <div class="intibak-panel">
+        <div class="intibak-panel-header">
+            <span>This University Courses</span>
+            <div class="curriculum-dropdown-wrap">
+                <button class="soft-btn compact" id="add-right-btn" type="button">+ Add from Curriculum ▾</button>
+                <div id="curriculum-dropdown"></div>
+            </div>
+        </div>
+        <table class="intibak-table">
+            <thead>
+                <tr>
+                    <th style="width:28px;"></th>
+                    <th style="width:80px;">Code</th>
+                    <th>Course Name</th>
+                    <th style="width:60px;">Credits</th>
+                    <th style="width:60px;">AKTS</th>
+                    <th style="width:64px;">Grade</th>
+                </tr>
+            </thead>
+            <tbody id="intibak-right-tbody">
+                <tr class="intibak-empty-row">
+                    <td colspan="5" style="text-align:center; color:#9ca3af; padding:20px; font-size:13px;">
+                        Add courses from curriculum
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+{# ── Bottom: Courses still needed ── #}
+<div class="intibak-panel" style="margin-top:0;">
+    <div class="intibak-panel-header">
+        <span>Courses to be Taken</span>
+        <span class="intibak-meta">Curriculum courses not yet matched above</span>
+    </div>
+    <table class="intibak-table">
+        <thead>
+            <tr>
+                <th style="width:80px;">Code</th>
+                <th>Course Name</th>
+                <th style="width:72px;">Credits</th>
+                <th style="width:72px;">AKTS</th>
+            </tr>
+        </thead>
+        <tbody id="intibak-needed-tbody">
+            <tr>
+                <td colspan="4" style="text-align:center; color:#9ca3af; padding:16px; font-size:13px;">
+                    Select an applicant to see required courses
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+{% else %}
+<div style="text-align:center; padding:48px 20px;">
+    <p class="subline">No applications forwarded to YGK yet.</p>
+    <p style="font-size:12px; color:#9ca3af; margin-top:8px;">Switch to Check Applications to see when applicants arrive.</p>
+</div>
+{% endif %}

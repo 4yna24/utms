@@ -167,6 +167,37 @@ def _get_tab_data(
             "resubmission_allowed": APPLICATION_RESUBMISSION_ALLOWED,
         }
 
+    if role_slug == "ygk" and tab_slug == "check-applications":
+        from ..models import ApplicationORM
+        apps = ApplicationORM.query.filter_by(status="forwarded_to_ygk").order_by(ApplicationORM.id.desc()).all()
+        return {"ygk_applications": apps}
+
+    if role_slug == "ygk" and tab_slug == "intibak-table":
+        import json
+        from ..models import ApplicationORM, ApplicationDocumentORM
+        from ..curriculum import CURRICULUM
+        apps = ApplicationORM.query.filter_by(status="forwarded_to_ygk").order_by(ApplicationORM.id.desc()).all()
+        _TRANSCRIPT_SLOT = 2
+        apps_data = []
+        for a in apps:
+            transcript = ApplicationDocumentORM.query.filter_by(
+                application_id=a.id, document_slot=_TRANSCRIPT_SLOT
+            ).first()
+            apps_data.append({
+                "id": a.id,
+                "full_name": a.full_name,
+                "source_university": a.source_university or "",
+                "target_program": a.target_program or a.target_department or "",
+                "current_gpa": a.current_gpa or "",
+                "target_semester": a.target_semester or "",
+                "transcript_doc_id": transcript.id if transcript else None,
+            })
+        return {
+            "ygk_applications": apps,
+            "curriculum_json": json.dumps(CURRICULUM),
+            "apps_json": json.dumps(apps_data),
+        }
+
     if role_slug == "admin":
         from ..classes import Admin
         admin = Admin(user_id, email, "admin")

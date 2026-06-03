@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, send_file, session, url_for
 
 from ..classes import YGK
 from ..database import get_application_repository
@@ -44,6 +44,18 @@ def intibak_table():
             "status": "Phase 1 shell",
         }
     )
+
+
+@ygk_api_bp.route("/view-document/<int:doc_id>", methods=["GET"])
+@role_required("ygk")
+def view_document(doc_id):
+    """Serve an application document file."""
+    app_repo = get_application_repository()
+    result = app_repo.get_document(doc_id)
+    if not result.success or not result.data:
+        abort(404)
+    doc = result.data
+    return send_file(doc.file_path, mimetype="application/pdf", as_attachment=False)
 
 
 @ygk_api_bp.route("/approve/<int:application_id>", methods=["POST"])
