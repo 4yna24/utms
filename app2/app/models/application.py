@@ -69,6 +69,13 @@ class ApplicationORM(db.Model):
         except (ValueError, TypeError):
             return []
 
+    @property
+    def doc_checker_sort_key(self) -> int:
+        """Numeric sort key for the doc checker column: 0=errors, 1=not checked, 2=passed."""
+        if self.doc_checker_status != "auto_checked":
+            return 1
+        return 0 if self.parsed_checker_errors else 2
+
     applicant = db.relationship("UserORM", back_populates="application")
     documents = db.relationship(
         "ApplicationDocumentORM",

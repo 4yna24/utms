@@ -93,6 +93,85 @@ class Oidb(User, IReviewer, IDocumentHandler):
                 f"Failed to forward applications: {str(exc)}"
             )
 
+    def run_doc_checker_all(self, checker: "IDocumentChecker | None" = None) -> OperationResult:
+        """Run document checker on every submitted application and store results.
+        Does NOT forward — only updates doc_checker_status and doc_checker_errors."""
+        if checker is None:
+            from ...services.document_checker import MockDocumentChecker
+            checker = MockDocumentChecker()
+
+        app_repo = get_application_repository()
+        try:
+            result = app_repo.get_by_status_with_documents("submitted")
+            if not result.success:
+                return result
+
+            apps = result.data or []
+            passed = 0
+            flagged = 0
+
+            for app in apps:
+                check_result = checker.check_application(app)
+                app.doc_checker_status = "auto_checked"
+                app.doc_checker_errors = json.dumps(
+                    [e.to_dict() for e in check_result.errors]
+                )
+                if check_result.passed:
+                    passed += 1
+                else:
+                    flagged += 1
+
+                add_result = app_repo.add_to_session(app)
+                if not add_result.success:
+                    app_repo.rollback()
+                    return add_result
+
+            commit_result = app_repo.commit()
+            if commit_result.success:
+                commit_result.data = {"passed": passed, "flagged": flagged}
+            return commit_result
+        except Exception as exc:
+            app_repo.rollback()
+            return OperationResult.error(
+                ErrorCode.DB_ERROR,
+                f"Document check failed: {str(exc)}"
+            )
+
+    def auto_forward_checked(self) -> OperationResult:
+        """Forward all submitted applications where doc checker already passed.
+        Does NOT re-run the checker — skips apps not yet checked or with errors."""
+        app_repo = get_application_repository()
+        try:
+            result = app_repo.get_by_status_with_documents("submitted")
+            if not result.success:
+                return result
+
+            apps = result.data or []
+            forwarded = 0
+            skipped = 0
+
+            for app in apps:
+                if app.doc_checker_status == "auto_checked" and not app.parsed_checker_errors:
+                    app.status = "forwarded_to_ydyo"
+                    forwarded += 1
+                    add_result = app_repo.add_to_session(app)
+                    if not add_result.success:
+                        app_repo.rollback()
+                        return add_result
+                else:
+                    skipped += 1
+
+            commit_result = app_repo.commit()
+            if commit_result.success:
+                commit_result.data = {"forwarded": forwarded, "skipped": skipped}
+            return commit_result
+        except Exception as exc:
+            app_repo.rollback()
+            return OperationResult.error(
+                ErrorCode.DB_ERROR,
+                f"Auto-forward failed: {str(exc)}"
+            )
+
     def auto_check_and_forward_all(self, checker: "IDocumentChecker | None" = None) -> OperationResult:
         """
         Run document checker on every submitted application, store results, and

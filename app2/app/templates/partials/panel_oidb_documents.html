@@ -2,20 +2,34 @@
     <div class="panel-tab-state" hidden
          data-filter="{{ active_filter }}"
          data-sort-col="{{ active_sort_col if active_sort_col is not none else '' }}"
-         data-sort-dir="{{ active_sort_dir }}"></div>
+         data-sort-dir="{{ active_sort_dir }}"
+         data-search="{{ search_query or '' }}"></div>
     <div class="oidb-header-bar">
         <div class="stats-row" data-filter-table="oidb-table">
             <span class="stat-chip chip-total{% if active_filter == 'all' %} chip-active{% endif %}" data-filter="all">Total: {{ status_counts.total }}</span>
             <span class="stat-chip chip-submitted{% if active_filter == 'submitted' %} chip-active{% endif %}" data-filter="submitted">Submitted: {{ status_counts.submitted }}</span>
-            <span class="stat-chip chip-forwarded{% if active_filter == 'forwarded_to_ydyo,forwarded_to_dean' %} chip-active{% endif %}" data-filter="forwarded_to_ydyo,forwarded_to_dean">Forwarded: {{ status_counts.forwarded_to_ydyo + status_counts.forwarded_to_dean }}</span>
+            <span class="stat-chip chip-forwarded{% if active_filter == 'forwarded_to_ydyo' %} chip-active{% endif %}" data-filter="forwarded_to_ydyo">Forwarded: {{ status_counts.forwarded_to_ydyo }}</span>
             <span class="stat-chip chip-returned{% if active_filter == 'returned' %} chip-active{% endif %}" data-filter="returned">Returned: {{ status_counts.returned }}</span>
         </div>
-        <form method="POST" action="{{ url_for('oidb_api.auto_check_and_forward') }}" style="display:inline;">
-            <button type="submit" class="soft-btn compact"
-                onclick="return confirm('Run Document Checker on all submitted applications and forward those that pass?')">
-                Auto-Check &amp; Forward to YDYO
-            </button>
-        </form>
+        <div class="panel-actions-bar">
+            <input type="text" class="panel-search-input" placeholder="Search by name…" value="{{ search_query or '' }}">
+            <form id="form-run-checker" method="POST" action="{{ url_for('oidb_api.run_doc_checker') }}">
+                <button type="button" class="soft-btn compact alt"
+                        data-modal-trigger
+                        data-modal-msg="Run Document Checker on all submitted applications? This will flag any issues but will not forward anything."
+                        data-form="form-run-checker">
+                    Run Doc Checker
+                </button>
+            </form>
+            <form id="form-auto-forward" method="POST" action="{{ url_for('oidb_api.auto_forward_checked') }}">
+                <button type="button" class="soft-btn compact"
+                        data-modal-trigger
+                        data-modal-msg="Auto-forward all applications that passed the Document Checker to YDYO? Applications with errors or not yet checked will be skipped."
+                        data-form="form-auto-forward">
+                    Auto Forward to YDYO
+                </button>
+            </form>
+        </div>
     </div>
 
     <div class="app-table-wrap">
@@ -41,7 +55,12 @@
                     <td>{{ app.full_name }}</td>
                     <td>{{ app.target_program or app.target_department }}</td>
                     <td>{{ app.target_semester or '—' }}</td>
-                    <td><span class="status-badge status-{{ app.status }}">{{ app.status|replace('_',' ')|title }}</span></td>
+                    <td>
+                        <span class="status-badge status-{{ app.status }}">{{ app.status|replace('_',' ')|title }}</span>
+                        {% if app.dean_notes and app.status == 'submitted' %}
+                            <span class="status-badge status-from-dean">From Dean</span>
+                        {% endif %}
+                    </td>
                     <td>
                         {% if app.doc_checker_status == 'auto_checked' %}
                             {% if has_errors %}
@@ -50,7 +69,7 @@
                                 <span class="status-badge checker-status-ok">Checked OK</span>
                             {% endif %}
                         {% else %}
-                            <span class="status-badge checker-status-pending">Manual Check</span>
+                            <span class="status-badge checker-status-pending">Not Checked</span>
                         {% endif %}
                     </td>
                     <td>{{ app.created_at.strftime('%d %b %Y') }}</td>
@@ -79,7 +98,13 @@
                                 </div>
                             {% elif app.doc_checker_status != 'auto_checked' %}
                                 <div class="info-box warning" style="margin:0 0 10px;">
-                                    <strong>Needs Manual Check</strong> — this application has not been through the automatic Document Checker yet.
+                                    <strong>Not Checked</strong> — run the Document Checker from the toolbar above to evaluate this application.
+                                </div>
+                            {% endif %}
+
+                            {% if app.dean_notes %}
+                                <div class="info-box warning" style="margin:0 0 10px;">
+                                    <strong>Returned by Dean:</strong> {{ app.dean_notes }}
                                 </div>
                             {% endif %}
 
@@ -146,11 +171,6 @@
                                 </div>
                             </div>
 
-                            {% if app.dean_notes %}
-                                <div class="info-box warning" style="margin:10px 0 0;">
-                                    <strong>Returned by Dean:</strong> {{ app.dean_notes }}
-                                </div>
-                            {% endif %}
                             {% if app.oidb_notes %}
                                 <div class="info-box warning" style="margin:10px 0 0;">
                                     <strong>Previous return reason:</strong> {{ app.oidb_notes }}
@@ -170,9 +190,13 @@
                             </div>
                             {% elif app.status == 'forwarded_to_ydyo' %}
                             <div class="action-col">
-                                <form method="POST" action="{{ url_for('oidb_api.cancel_forward_to_ydyo', application_id=app.id) }}"
-                                      onsubmit="return confirm('Cancel the forward to YDYO? The application will revert to Submitted status.')">
-                                    <button type="submit" class="soft-btn danger-btn">Cancel Forward to YDYO</button>
+                                <form id="form-cancel-ydyo-{{ app.id }}" method="POST" action="{{ url_for('oidb_api.cancel_forward_to_ydyo', application_id=app.id) }}">
+                                    <button type="button" class="soft-btn danger-btn"
+                                            data-modal-trigger
+                                            data-modal-msg="Cancel the forward to YDYO? The application will revert to Submitted status."
+                                            data-form="form-cancel-ydyo-{{ app.id }}">
+                                        Cancel Forward to YDYO
+                                    </button>
                                 </form>
                             </div>
                             {% else %}
@@ -196,6 +220,18 @@
         {% endif %}
     </div>
     {% endif %}
+
+    {# ── Confirm modal (shared for all actions in this panel) ── #}
+    <div class="confirm-modal" id="oidb-confirm-modal" hidden>
+        <div class="confirm-modal-overlay"></div>
+        <div class="confirm-modal-box">
+            <p class="confirm-modal-msg"></p>
+            <div class="confirm-modal-btns">
+                <button type="button" class="soft-btn alt compact confirm-modal-cancel">Cancel</button>
+                <button type="button" class="soft-btn compact confirm-modal-ok">Confirm</button>
+            </div>
+        </div>
+    </div>
 {% else %}
     <p class="subline">No applications submitted yet.</p>
 {% endif %}

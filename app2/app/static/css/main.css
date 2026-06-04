@@ -184,6 +184,7 @@ button:active, .soft-btn:active { transform: translateY(0); }
 .status-forwarded_to_ygk  { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
 .status-forwarded_to_oidb { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
 .status-cancelled         { background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; }
+.status-from-dean         { background: #fff7ed; color: #c2410c; border: 1px solid #fb923c; }
 .status-oidb_approved     { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
 
 /* ── Document Checker status badges ── */

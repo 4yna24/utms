@@ -64,6 +64,45 @@ def forward_all_to_ydyo():
     return redirect(url_for("dashboard.index", tab="check-documents"))
 
 
+@oidb_api_bp.route("/run-doc-checker", methods=["POST"])
+@role_required("oidb")
+def run_doc_checker():
+    """Run document checker on all submitted applications. Does not forward."""
+    service = _get_service()
+    result = service.run_doc_checker_all()
+    if result.success:
+        data = result.data or {}
+        passed = data.get("passed", 0)
+        flagged = data.get("flagged", 0)
+        flash(
+            f"Document check complete: {passed} passed, {flagged} have errors.",
+            "success" if flagged == 0 else "warning",
+        )
+    else:
+        flash(result.error_msg, "error")
+    return redirect(url_for("dashboard.index", tab="check-documents"))
+
+
+@oidb_api_bp.route("/auto-forward-checked", methods=["POST"])
+@role_required("oidb")
+def auto_forward_checked():
+    """Forward all submitted applications where doc checker already passed."""
+    service = _get_service()
+    result = service.auto_forward_checked()
+    if result.success:
+        data = result.data or {}
+        forwarded = data.get("forwarded", 0)
+        skipped = data.get("skipped", 0)
+        flash(
+            f"Auto-forward complete: {forwarded} forwarded to YDYO, "
+            f"{skipped} skipped (not checked or have errors).",
+            "success" if skipped == 0 else "warning",
+        )
+    else:
+        flash(result.error_msg, "error")
+    return redirect(url_for("dashboard.index", tab="check-documents"))
+
+
 @oidb_api_bp.route("/auto-check-and-forward", methods=["POST"])
 @role_required("oidb")
 def auto_check_and_forward():

@@ -337,23 +337,34 @@ Slugs are computed from tab titles by `_slugify()` in `dashboard.py`:
 - **Fetch errors** (network down, HTTP 4xx/5xx): `dashboard.js` calls `showToast()` which creates a dismissible toast using the same `.flash-msg` CSS classes as server-rendered flash messages. Toasts auto-dismiss after 5 seconds.
 - **Server-rendered flash messages** (after form actions): rendered by `base.html`, auto-dismissed after 4 seconds by the same JS.
 
-### Pagination, filtering, and sorting
+### Pagination, filtering, sorting, and search
 
 `_get_tab_data()` uses `_PER_PAGE = 10`. For each paginated staff panel it:
 
 1. Fetches all records from the role class.
 2. Computes `status_counts` on the **full** list — chip totals always reflect the complete dataset.
-3. Calls `_filter_apps(apps, filter_status)` — supports a single status string **or** comma-separated values (e.g. `"forwarded_to_ydyo,forwarded_to_dean"` for the OIDB "Forwarded" chip).
-4. Calls `_sort_apps(apps, sort_col, sort_dir, col_map)` — numeric-aware sort using a `(bucket, numeric, string)` tuple key so integer IDs sort correctly as numbers, not strings.
-5. Slices for the requested page.
+3. Calls `_filter_apps(apps, filter_status)` — supports a single status string **or** comma-separated values.
+4. Calls `_search_apps(apps, search)` — case-insensitive substring filter on `full_name`.
+5. Calls `_sort_apps(apps, sort_col, sort_dir, col_map)` — numeric-aware sort using a `(bucket, numeric, string)` tuple key so integer IDs sort correctly as numbers, not strings.
+6. Slices for the requested page.
 
-Filter and sort travel as query params: `?filter=submitted&sort_col=1&sort_dir=asc`. The JS sends these on every chip click and column-header click (server-side re-fetch replaces DOM-only manipulation), so the filter/sort applies to the **full dataset** before pagination, not just the current page.
+Filter, sort, and search travel as query params: `?filter=submitted&sort_col=1&sort_dir=asc&search=ali`. The JS sends these on every chip click, column-header click, or search input (300 ms debounce), so all three apply to the **full dataset** before pagination.
 
-**Panel state element**: Every paginated staff panel partial embeds a hidden `<div class="panel-tab-state" data-filter="…" data-sort-col="…" data-sort-dir="…">` at the top. `dashboard.js` reads this after each fetch to carry filter/sort state into the next chip click, sort click, or page-navigation click. Panels without this element (e.g. admin tables) fall back to the old client-side filter/sort.
+**OIDB-specific sort and visibility**: The OIDB tab filters the full application list to `_OIDB_VISIBLE_STATUSES = {"submitted", "forwarded_to_ydyo", "returned", "cancelled"}` before any chip/sort/search — statuses beyond OIDB's scope (`forwarded_to_dean`, `forwarded_to_ygk`, etc.) are never shown. When no explicit column sort is active, `_oidb_sort_priority(app)` is used instead of `_sort_apps`:
+
+| Priority | Condition |
+|---|---|
+| 0 | `submitted` + `dean_notes` set ("returned by dean to OIDB") |
+| 1 | `submitted` (no dean_notes) |
+| 2 | `forwarded_to_ydyo` |
+| 3 | `returned` (OIDB returned to applicant) |
+| 4 | `cancelled` |
+
+**Panel state element**: Every paginated staff panel partial embeds a hidden `<div class="panel-tab-state" data-filter="…" data-sort-col="…" data-sort-dir="…" data-search="…">` at the top. `dashboard.js` reads this after each fetch to carry all state into the next interaction. Panels without this element (e.g. admin tables) fall back to old client-side filter/sort.
 
 **Active chip highlighting**: The server renders the active chip with `chip-active` class and re-renders the sort indicator span on the active column header — no JS is needed to restore visual state after a re-fetch.
 
-Partials receive: `pagination` dict, `status_counts` dict, `active_filter` str, `active_sort_col` int|None, `active_sort_dir` str.
+Partials receive: `pagination` dict, `status_counts` dict, `active_filter` str, `active_sort_col` int|None, `active_sort_dir` str, `search_query` str.
 
 **Admin and ROLE_DEFINITIONS**: Admin tabs live in `PHASE1_TABS["admin"]` but `ROLE_DEFINITIONS` does NOT include admin. This means admin's display name won't resolve through the normal lookup — `dashboard.py` handles this with a local `_ROLE_DISPLAY` dict that adds `"admin": "Administrator"`.
 
@@ -429,6 +440,10 @@ The helper runs `ALTER TABLE application ADD COLUMN …` for any missing column 
 
 Columns currently managed by this helper: `id_number`, `target_program`, `target_semester`, `is_currently_enrolled`, `oidb_notes`, `prep_school_status`, `forwarded_faculty`, `last_edited_by_id`, `last_edited_at`, `estimated_gpa`, `oysm_points`, `doc_checker_status`, `doc_checker_errors`, `dean_notes`.
 
+`ApplicationORM` also has computed `@property` fields (no column, no migration needed):
+- `parsed_checker_errors` — `doc_checker_errors` JSON decoded to a list of dicts, safe for template use
+- `doc_checker_sort_key` — int (0=errors, 1=not checked, 2=passed) used as the sort key for the Doc Checker column so it sorts meaningfully rather than alphabetically on the raw string
+
 ---
 
 ## Status Badge CSS Convention
@@ -437,19 +452,44 @@ Status badges use `.status-badge.status-<status>` classes defined in `main.css`.
 
 **Exception — Dean panel only**: `forwarded_to_dean` appears yellow inside the Dean's own panel (because it is *pending* from the dean's perspective). This is achieved with a separate `.status-pending-dean` class applied only in `panel_dean_applications.html`. The global `.status-forwarded_to_dean` rule stays green so other panels (OIDB, YDYO) see the correct colour.
 
+**Secondary badge — "From Dean"**: In the OIDB panel, when an application has `dean_notes` set and its status is `submitted`, a second `.status-from-dean` badge (amber) is rendered next to the main status badge. This indicates the application was returned from the dean and needs re-review by OIDB. The `dean_notes` value itself is shown in the expand row. This is purely a display hint — it does not represent a separate DB status value.
+
 **Rule**: Never change a global `.status-*` rule to solve a role-specific display need. Add a role-specific override class instead.
 
 ---
 
 ## Role Implementation Checklist
 
-| Role | Class file | Route file | Dashboard partial | `_get_role_data` branch |
+| Role | Class file | Route file | Dashboard partial | `_get_tab_data` branch |
 |------|-----------|-----------|-------------------|------------------------|
 | Admin | `classes/users/admin.py` | `routes/admin.py` | `panel_admin_*.html` (3 tabs) | ✓ |
 | Applicant | `classes/users/applicant.py` | `routes/applicant.py` | `panel_applicant_*.html` | ✓ |
 | OIDB | `classes/users/oidb.py` | `routes/oidb.py` | `panel_oidb_documents.html` | ✓ |
-| Dean | `classes/users/dean.py` | `routes/dean.py` | `panel_dean_applications.html` | ✓ | `get_document()`, view-document route |
+| Dean | `classes/users/dean.py` | `routes/dean.py` | `panel_dean_applications.html` | ✓ |
 | YDYO | `classes/users/ydyo.py` | `routes/ydyo.py` | `panel_ydyo_documents.html` | ✓ |
+
+### OIDB class methods (`classes/users/oidb.py`)
+
+| Method | Purpose |
+|---|---|
+| `get_pending_applicants()` | All applications (filtered to OIDB-visible statuses in `_get_tab_data`) |
+| `forward_to_ydyo(id)` | Forward a single application to YDYO |
+| `cancel_forward_to_ydyo(id)` | Revert a `forwarded_to_ydyo` app back to `submitted` |
+| `return_application(id, notes)` | Return to applicant with required reason notes |
+| `run_doc_checker_all()` | Run doc checker on all `submitted` apps, store results, **do not forward** |
+| `auto_forward_checked()` | Forward all `submitted` apps that already passed the checker — **does not re-run checker** |
+| `auto_check_and_forward_all()` | Legacy combined: run checker + forward passers in one step |
+
+### OIDB routes (`routes/oidb.py`, prefix `/api/oidb/`)
+
+| Route | Method |
+|---|---|
+| `POST /run-doc-checker` | Calls `run_doc_checker_all()` |
+| `POST /auto-forward-checked` | Calls `auto_forward_checked()` |
+| `POST /forward-to-ydyo/<id>` | Single-app forward |
+| `POST /cancel-forward-to-ydyo/<id>` | Cancel forward |
+| `POST /return-application/<id>` | Return to applicant |
+| `GET /view-document/<doc_id>` | Serve document PDF |
 | YGK | `classes/users/ygk.py` | `routes/ygk.py` | — (partial: None) | — |
 
 ---
@@ -479,6 +519,8 @@ All interactive behavior for the dashboard lives here:
 - **Chip filters** — any `.stats-row[data-filter-table="<id>"]` auto-wires its `[data-filter]` chips to filter the named table by `data-status` on header rows
 - **Column sort** — any `<table id="...">` with `<th data-sort="N">` gets clickable sort (row-pairs kept together during sort so expand rows stay linked)
 - **Expand rows** — `.expand-btn` opens/closes `.app-row-expand` with animated slide; only one open at a time
+- **Search bar** — `.panel-search-input` inside a panel with `.panel-tab-state` triggers a server-side re-fetch after 300 ms of inactivity; the `search` value travels in the query param and is preserved in `data-search` on the state element across re-fetches
+- **Confirm modal** — any button with `data-modal-trigger` shows a `.confirm-modal` overlay. The button must also have `data-modal-msg="…"` (message text) and `data-form="<form-id>"` (which form to submit on confirm). The modal is expected to live inside the same panel partial. Clicking Cancel, Confirm, or the overlay closes it.
 
 ### Re-fetch (filter / sort / page)
 

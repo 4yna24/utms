@@ -60,6 +60,34 @@ def _filter_apps(apps: list, filter_status: str) -> list:
     return [a for a in apps if a.status in statuses]
 
 
+def _search_apps(apps: list, query: str) -> list:
+    if not query or not query.strip():
+        return apps
+    q = query.strip().lower()
+    return [a for a in apps if q in (a.full_name or "").lower()]
+
+
+_OIDB_VISIBLE_STATUSES = {"submitted", "forwarded_to_ydyo", "returned", "cancelled"}
+
+
+def _oidb_sort_priority(app) -> tuple:
+    status = app.status
+    has_dean_notes = bool(getattr(app, "dean_notes", None))
+    if status == "submitted" and has_dean_notes:
+        bucket = 0
+    elif status == "submitted":
+        bucket = 1
+    elif status == "forwarded_to_ydyo":
+        bucket = 2
+    elif status == "returned":
+        bucket = 3
+    elif status == "cancelled":
+        bucket = 4
+    else:
+        bucket = 5
+    return (bucket, app.id or 0)
+
+
 def _sort_apps(apps: list, sort_col, sort_dir: str, col_map: dict) -> list:
     if sort_col is None or sort_col not in col_map:
         return apps
@@ -80,6 +108,7 @@ def _sort_apps(apps: list, sort_col, sort_dir: str, col_map: dict) -> list:
 def _get_tab_data(
     role_slug: str, tab_slug: str, page: int, user_id: int, email: str,
     filter_status: str = "all", sort_col=None, sort_dir: str = "asc",
+    search: str = "",
 ) -> dict:
     """Return template context for one tab, with pagination where applicable."""
     per_page = _PER_PAGE
@@ -88,10 +117,15 @@ def _get_tab_data(
     if role_slug == "oidb" and tab_slug == "check-documents":
         from ..classes import Oidb
         all_apps = Oidb(user_id, email, "oidb").get_pending_applicants()
+        all_apps = [a for a in all_apps if a.status in _OIDB_VISIBLE_STATUSES]
         col_map = {0: "id", 1: "full_name", 2: "target_program", 3: "target_semester",
-                   4: "status", 5: "doc_checker_status", 6: "created_at"}
-        status_counts = _status_counts(all_apps, ["submitted", "forwarded_to_ydyo", "forwarded_to_dean", "returned"])
-        apps = _sort_apps(_filter_apps(all_apps, filter_status), sort_col, sort_dir, col_map)
+                   4: "status", 5: "doc_checker_sort_key", 6: "created_at"}
+        status_counts = _status_counts(all_apps, ["submitted", "forwarded_to_ydyo", "returned"])
+        filtered = _search_apps(_filter_apps(all_apps, filter_status), search)
+        if sort_col is None:
+            apps = sorted(filtered, key=_oidb_sort_priority)
+        else:
+            apps = _sort_apps(filtered, sort_col, sort_dir, col_map)
         return {
             "oidb_applications": apps[offset:offset + per_page],
             "document_slots": APPLICATION_DOCUMENT_SLOTS,
@@ -100,6 +134,7 @@ def _get_tab_data(
             "active_filter": filter_status,
             "active_sort_col": sort_col,
             "active_sort_dir": sort_dir,
+            "search_query": search,
         }
 
     if role_slug == "dean" and tab_slug == "receive-forward-applications":
@@ -224,6 +259,7 @@ def tab_content(tab_slug: str):
     filter_status = request.args.get("filter", "all")
     sort_col = request.args.get("sort_col", None, type=int)
     sort_dir = request.args.get("sort_dir", "asc")
+    search = request.args.get("search", "").strip()
 
     tabs = _enrich_tabs(PHASE1_TABS.get(role_slug, []))
     tab = next((t for t in tabs if t["slug"] == tab_slug), None)
@@ -232,5 +268,5 @@ def tab_content(tab_slug: str):
     if not tab.get("partial"):
         return "<p class='subline'>This section will be available in a future phase.</p>"
 
-    data = _get_tab_data(role_slug, tab_slug, page, user_id, email, filter_status, sort_col, sort_dir)
+    data = _get_tab_data(role_slug, tab_slug, page, user_id, email, filter_status, sort_col, sort_dir, search)
     return render_template(tab["partial"], **data)
