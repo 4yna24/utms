@@ -454,13 +454,48 @@ Status badges use `.status-badge.status-<status>` classes defined in `main.css`.
 
 ---
 
+## Dashboard Animations (`static/css/dashboard.css`)
+
+Three keyframes are defined at the top of `dashboard.css`:
+
+| Keyframe | Used on | Purpose |
+|---|---|---|
+| `fadeSlideIn` | `.workspace-panel.active`, `.tab-content-wrap`, `.module-card` | Fade + 6px upward slide on enter |
+| `loadingPulse` | `.tab-loading-placeholder` | Opacity pulse while content is fetching |
+
+Animation specifics:
+- **Panel switch** — `.workspace-panel.active` plays `fadeSlideIn 0.2s` every time a tab becomes active.
+- **Card stagger** — `.cards-grid .module-card` plays `fadeSlideIn 0.25s` with `:nth-child(1–6)` delays (0–0.30s, step 0.06s).
+- **Card hover** — `.module-card` has `transition: box-shadow, transform` and lifts 2px on hover.
+- **Lazy content** — fetched tab HTML is wrapped in `<div class="tab-content-wrap">` so every load replays `fadeSlideIn 0.22s`.
+- **Re-fetch dim** — `.panel-fetching` sets `opacity: 0.4; pointer-events: none` while a filter/sort/page fetch is in flight; the class is added/removed by `fetchTabContent` in JS.
+
+---
+
 ## Dashboard JavaScript (`static/js/dashboard.js`)
 
 All interactive behavior for the dashboard lives here:
 - **Tab switching** — `.tab-button` clicks toggle `.workspace-panel.active`
 - **Chip filters** — any `.stats-row[data-filter-table="<id>"]` auto-wires its `[data-filter]` chips to filter the named table by `data-status` on header rows
 - **Column sort** — any `<table id="...">` with `<th data-sort="N">` gets clickable sort (row-pairs kept together during sort so expand rows stay linked)
-- **Expand rows** — `.expand-btn` toggles `.app-row-expand` visibility; only one open at a time
+- **Expand rows** — `.expand-btn` opens/closes `.app-row-expand` with animated slide; only one open at a time
+
+### Re-fetch (filter / sort / page)
+
+`fetchTabContent` checks for `.tab-content-wrap` inside the panel to distinguish first load from re-fetch:
+- **First load** — replaces panel innerHTML with the loading placeholder.
+- **Re-fetch** — adds `.panel-fetching` (dims existing content) instead of wiping it. Removes the class and swaps innerHTML when the response arrives. This prevents the "white flash" that would occur if the DOM were cleared before the fetch completed.
+
+### Expand / collapse animation
+
+`expandRow(row)` and `collapseRow(row)` drive the animation. Key design decisions:
+
+- **Wrapper div** — on first call, `getExpandWrap(content)` inserts `<div class="expand-anim-wrap" style="overflow:hidden">` around `.expand-content` inside the `<td>`. We animate `max-height` on this wrapper (which has no padding or border of its own) rather than on `.expand-content` directly. This guarantees `max-height: 0` means true 0 height — animating the inner div would leave residual height from its `padding: 16px`.
+- **Forced reflow** — `void wrap.offsetHeight` is used (not `requestAnimationFrame`) to commit the initial 0-height state before the transition begins.
+- **`offsetHeight` not `scrollHeight`** — `collapseRow` reads `wrap.offsetHeight` (current rendered height) to start from the correct mid-animation position. `scrollHeight` returns 0 when `overflow:hidden; max-height:0` is already set, which would produce a no-op transition and leave the row stuck (never hidden).
+- **Immediate bail** — if `wrap.offsetHeight === 0` when `collapseRow` is called (already collapsed), `row.hidden = true` is set immediately with no transition; this prevents a stuck open state when clicking rapidly.
+- **`<td>` border** — the `<td>` in `.app-row-expand` has `border-bottom: 1px` in CSS. `collapseRow` zeroes this inline before the animation starts and restores it in the `transitionend` cleanup. Without this, a 1px residual row remained visible until `row.hidden = true` fired, causing a visible jerk.
+- **Listener guard** — each wrap stores its active `transitionend` listener as `wrap._anim`. Both functions cancel any in-progress animation (remove old listener, restart) before adding a new one.
 
 ---
 

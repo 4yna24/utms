@@ -62,22 +62,106 @@ document.addEventListener('DOMContentLoaded', () => {
         if (filter !== 'all') url += `&filter=${encodeURIComponent(filter)}`;
         if (sortCol !== null) url += `&sort_col=${sortCol}&sort_dir=${sortDir}`;
 
-        panel.innerHTML = '<div class="tab-loading-placeholder">Loading…</div>';
+        // Re-fetch (filter/sort/page): dim existing content, don't wipe it
+        const isRefetch = !!panel.querySelector('.tab-content-wrap');
+        if (isRefetch) {
+            panel.classList.add('panel-fetching');
+        } else {
+            panel.innerHTML = '<div class="tab-loading-placeholder">Loading…</div>';
+        }
+
         fetch(url)
             .then(r => {
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
                 return r.text();
             })
             .then(html => {
+                panel.classList.remove('panel-fetching');
                 panel.innerHTML = `<div class="tab-content-wrap">${html}</div>`;
                 loaded[panel.id] = true;
                 pushUrl(slug, page);
                 initPanelInteractions(panel, slug);
             })
             .catch(() => {
+                panel.classList.remove('panel-fetching');
                 panel.innerHTML = '';
                 showToast('Failed to load tab content. Please try again.', 'error');
             });
+    }
+
+    // ── Animated expand / collapse ──
+    // We animate a thin wrapper div (no padding/border) around .expand-content so that
+    // max-height:0 gives true 0 height — no residual from inner padding or cell font metrics.
+    function getExpandWrap(content) {
+        if (content.parentElement && content.parentElement.classList.contains('expand-anim-wrap')) {
+            return content.parentElement;
+        }
+        const wrap = document.createElement('div');
+        wrap.className = 'expand-anim-wrap';
+        wrap.style.overflow = 'hidden';
+        content.parentNode.insertBefore(wrap, content);
+        wrap.appendChild(content);
+        return wrap;
+    }
+
+    function expandRow(row) {
+        const content = row.querySelector('.expand-content');
+        if (!content) { row.hidden = false; return; }
+        const td = row.querySelector('td');
+        if (td) td.style.borderBottom = '';
+        row.hidden = false;
+        const wrap = getExpandWrap(content);
+        if (wrap._anim) { wrap.removeEventListener('transitionend', wrap._anim); delete wrap._anim; }
+        wrap.style.transition = 'none';
+        wrap.style.maxHeight = 'none';
+        const h = wrap.scrollHeight;
+        wrap.style.maxHeight = '0px';
+        wrap.style.opacity = '0';
+        void wrap.offsetHeight; // force reflow — commits 0-height before transition starts
+        wrap.style.transition = 'max-height 0.25s ease, opacity 0.2s ease';
+        wrap.style.maxHeight = h + 'px';
+        wrap.style.opacity = '1';
+        function done(e) {
+            if (e.propertyName !== 'max-height') return;
+            wrap.style.maxHeight = wrap.style.transition = wrap.style.opacity = '';
+            wrap.removeEventListener('transitionend', done);
+            delete wrap._anim;
+        }
+        wrap._anim = done;
+        wrap.addEventListener('transitionend', done);
+    }
+
+    function collapseRow(row) {
+        const content = row.querySelector('.expand-content');
+        if (!content) { row.hidden = true; return; }
+        const wrap = content.parentElement && content.parentElement.classList.contains('expand-anim-wrap')
+            ? content.parentElement : getExpandWrap(content);
+        if (wrap._anim) { wrap.removeEventListener('transitionend', wrap._anim); delete wrap._anim; }
+        const td = row.querySelector('td');
+        const h = wrap.offsetHeight; // current rendered height — safe even mid-animation
+        if (h === 0) {
+            row.hidden = true;
+            wrap.style.maxHeight = wrap.style.opacity = wrap.style.transition = '';
+            if (td) td.style.borderBottom = '';
+            return;
+        }
+        if (td) td.style.borderBottom = 'none';
+        wrap.style.transition = 'none';
+        wrap.style.maxHeight = h + 'px';
+        void wrap.offsetHeight; // force reflow
+        wrap.style.transition = 'max-height 0.2s ease, opacity 0.15s ease';
+        wrap.style.maxHeight = '0px';
+        wrap.style.opacity = '0';
+        function done(e) {
+            if (e.propertyName !== 'max-height') return;
+            row.hidden = true;
+            wrap.style.maxHeight = wrap.style.opacity = wrap.style.transition = '';
+            if (td) td.style.borderBottom = '';
+            wrap.removeEventListener('transitionend', done);
+            delete wrap._anim;
+        }
+        wrap._anim = done;
+        wrap.addEventListener('transitionend', done);
     }
 
     function pushUrl(slug, page) {
@@ -135,11 +219,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const row = panel.querySelector('#expand-' + id);
                 if (!row) return;
                 const wasHidden = row.hidden;
-                panel.querySelectorAll('.app-row-expand').forEach(r => { r.hidden = true; });
+                panel.querySelectorAll('.app-row-expand').forEach(r => { if (!r.hidden) collapseRow(r); });
                 panel.querySelectorAll('.app-row-header').forEach(r => r.classList.remove('expanded'));
                 panel.querySelectorAll('.expand-btn').forEach(b => { b.textContent = 'Expand'; });
                 if (wasHidden) {
-                    row.hidden = false;
+                    expandRow(row);
                     btn.closest('tr').classList.add('expanded');
                     btn.textContent = 'Collapse';
                 }

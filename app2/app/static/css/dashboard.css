@@ -4,10 +4,6 @@
     to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes slideDown {
-    from { opacity: 0; transform: translateY(-6px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
 
 @keyframes loadingPulse {
     0%, 100% { opacity: 1; }
@@ -561,9 +557,11 @@
     animation: fadeSlideIn 0.22s ease both;
 }
 
-/* ── Expand row reveal ── */
-.app-row-expand:not([hidden]) .expand-content {
-    animation: slideDown 0.18s ease both;
+/* ── Re-fetch dim (filter / sort / page) ── */
+.panel-fetching {
+    opacity: 0.4;
+    pointer-events: none;
+    transition: opacity 0.12s;
 }
 
 /* ── Pagination bar ── */
