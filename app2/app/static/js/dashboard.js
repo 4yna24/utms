@@ -57,12 +57,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const filter = state.filter || 'all';
         const sortCol = (state.sortCol !== undefined && state.sortCol !== null) ? state.sortCol : null;
         const sortDir = state.sortDir || 'asc';
-        const search = state.search || '';
 
         let url = `/dashboard/tab/${slug}?page=${page}`;
         if (filter !== 'all') url += `&filter=${encodeURIComponent(filter)}`;
         if (sortCol !== null) url += `&sort_col=${sortCol}&sort_dir=${sortDir}`;
-        if (search) url += `&search=${encodeURIComponent(search)}`;
 
         // Re-fetch (filter/sort/page): dim existing content, don't wipe it
         const isRefetch = !!panel.querySelector('.tab-content-wrap');
@@ -190,8 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
             filter: stateEl.dataset.filter || 'all',
             sortCol: stateEl.dataset.sortCol !== '' ? parseInt(stateEl.dataset.sortCol) : null,
             sortDir: stateEl.dataset.sortDir || 'asc',
-            search: stateEl.dataset.search || '',
-        } : { filter: 'all', sortCol: null, sortDir: 'asc', search: '' };
+        } : { filter: 'all', sortCol: null, sortDir: 'asc' };
 
         // Re-apply sort indicator from server state
         if (stateEl && filterState.sortCol !== null) {
@@ -295,21 +292,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Multi-step application form
         initAppForm(panel);
 
-        // Search bar — debounced re-fetch
-        const searchInput = panel.querySelector('.panel-search-input');
-        if (searchInput && stateEl) {
-            let searchTimer;
-            searchInput.addEventListener('input', () => {
-                clearTimeout(searchTimer);
-                searchTimer = setTimeout(() => {
-                    loaded[panel.id] = false;
-                    fetchTabContent(panel, slug, 1, { ...filterState, search: searchInput.value.trim() });
-                }, 300);
-            });
-        }
-
-        // Confirm modal — wire triggers and buttons
-        const modal = panel.querySelector('.confirm-modal');
+        // Confirm modal — lives in dashboard.html outside .workspace-area so position:fixed
+        // covers the full viewport (transform on .workspace-panel.active would break it otherwise)
+        const modal = document.getElementById('dashboard-confirm-modal');
         if (modal) {
             let pendingForm = null;
             panel.querySelectorAll('[data-modal-trigger]').forEach(btn => {
@@ -320,19 +305,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     modal.hidden = false;
                 });
             });
-            modal.querySelector('.confirm-modal-cancel').addEventListener('click', () => {
-                modal.hidden = true;
-                pendingForm = null;
-            });
-            modal.querySelector('.confirm-modal-ok').addEventListener('click', () => {
-                modal.hidden = true;
-                if (pendingForm) pendingForm.submit();
-                pendingForm = null;
-            });
-            modal.querySelector('.confirm-modal-overlay').addEventListener('click', () => {
-                modal.hidden = true;
-                pendingForm = null;
-            });
+            // Wire close buttons only once — the modal is outside the panel and survives re-fetches
+            if (!modal._wired) {
+                modal._wired = true;
+                modal.querySelector('.confirm-modal-cancel').addEventListener('click', () => {
+                    modal.hidden = true;
+                    pendingForm = null;
+                });
+                modal.querySelector('.confirm-modal-ok').addEventListener('click', () => {
+                    modal.hidden = true;
+                    if (pendingForm) pendingForm.submit();
+                    pendingForm = null;
+                });
+                modal.querySelector('.confirm-modal-overlay').addEventListener('click', () => {
+                    modal.hidden = true;
+                    pendingForm = null;
+                });
+            }
         }
     }
 

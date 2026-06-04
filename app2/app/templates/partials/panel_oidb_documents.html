@@ -2,8 +2,7 @@
     <div class="panel-tab-state" hidden
          data-filter="{{ active_filter }}"
          data-sort-col="{{ active_sort_col if active_sort_col is not none else '' }}"
-         data-sort-dir="{{ active_sort_dir }}"
-         data-search="{{ search_query or '' }}"></div>
+         data-sort-dir="{{ active_sort_dir }}"></div>
     <div class="oidb-header-bar">
         <div class="stats-row" data-filter-table="oidb-table">
             <span class="stat-chip chip-total{% if active_filter == 'all' %} chip-active{% endif %}" data-filter="all">Total: {{ status_counts.total }}</span>
@@ -12,7 +11,6 @@
             <span class="stat-chip chip-returned{% if active_filter == 'returned' %} chip-active{% endif %}" data-filter="returned">Returned: {{ status_counts.returned }}</span>
         </div>
         <div class="panel-actions-bar">
-            <input type="text" class="panel-search-input" placeholder="Search by name…" value="{{ search_query or '' }}">
             <form id="form-run-checker" method="POST" action="{{ url_for('oidb_api.run_doc_checker') }}">
                 <button type="button" class="soft-btn compact alt"
                         data-modal-trigger
@@ -221,17 +219,6 @@
     </div>
     {% endif %}
 
-    {# ── Confirm modal (shared for all actions in this panel) ── #}
-    <div class="confirm-modal" id="oidb-confirm-modal" hidden>
-        <div class="confirm-modal-overlay"></div>
-        <div class="confirm-modal-box">
-            <p class="confirm-modal-msg"></p>
-            <div class="confirm-modal-btns">
-                <button type="button" class="soft-btn alt compact confirm-modal-cancel">Cancel</button>
-                <button type="button" class="soft-btn compact confirm-modal-ok">Confirm</button>
-            </div>
-        </div>
-    </div>
 {% else %}
     <p class="subline">No applications submitted yet.</p>
 {% endif %}

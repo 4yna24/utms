@@ -425,22 +425,6 @@
     flex-wrap: wrap;
 }
 
-.panel-search-input {
-    padding: 5px 10px;
-    border: 1px solid #d1d5db;
-    border-radius: 7px;
-    font-size: 13px;
-    width: 180px;
-    background: #fff;
-    color: #111827;
-    transition: border-color 0.15s, box-shadow 0.15s;
-}
-.panel-search-input:focus {
-    outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
-}
-
 /* ── Confirm modal ── */
 .confirm-modal {
     position: fixed;
