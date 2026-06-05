@@ -81,10 +81,10 @@ PHASE1_TABS = {
             "partial": "partials/panel_oidb_documents.html",
         },
         {
-            "title": "Create Waitlist Table",
-            "description": "Placeholder wizard for waitlist generation.",
-            "endpoint": "oidb_api.create_waitlist_table",
-            "partial": None,
+            "title": "Create Ranking Table",
+            "description": "Sort intibak-complete applicants by ranking score per program.",
+            "endpoint": "oidb_api.create_ranking_table",
+            "partial": "partials/panel_oidb_ranking.html",
         },
     ],
     "dean": [

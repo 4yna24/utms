@@ -84,7 +84,6 @@ def _ensure_application_new_columns():
             "forwarded_faculty": 'VARCHAR(120)',
             "last_edited_by_id": "INTEGER",
             "last_edited_at": "DATETIME",
-            "estimated_gpa": "VARCHAR(16)",
             "oysm_points": "VARCHAR(16)",
             "doc_checker_status": "VARCHAR(32) DEFAULT 'needs_manual_check'",
             "doc_checker_errors": "TEXT",

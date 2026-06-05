@@ -93,6 +93,14 @@ FLASK_APP=run.py flask seed-db [--yes]       # wipe + reseed test data
 
 Status badges use `.status-badge.status-<status>` classes. All `forwarded_*` statuses are **green** globally. **Exception**: `.status-pending-dean` (yellow) is used only in `panel_dean_applications.html` for `forwarded_to_dean` entries — pending from the dean's perspective. Never change a global `.status-*` rule for a single-role display need; add a role-specific class instead.
 
+## Ranking Score Formula
+
+```
+ranking_score = (oysm_points / 560) × 90  +  (current_gpa / 4.0) × 10
+```
+
+Computed server-side in `routes/ygk._calc_ranking_score(app_obj)` at "Send to OIDB" time. Uses the applicant's submitted `current_gpa` (real GPA — there is no estimated/intibak GPA). `estimated_gpa` concept has been removed from the system. Returns `None` when either field is absent. Stored in `IntibakTableORM.ranking_score`. The OIDB "Create Ranking Table" tab (`panel_oidb_ranking.html`) reads `IntibakTableORM.ranking_score` and sorts descending.
+
 ## Document Slots
 
 `APPLICATION_DOCUMENT_SLOTS` in `config.py` is the single source of truth for upload slots. Current slots: Student Certificate (1), Transcript (2), OYSM Points (3), English Proficiency Certificate (4, optional), OYSM Certificate (5, optional). Optional slots skip the `(optional)` display label but remain non-required on submit. Do not add the `(optional)` text back.

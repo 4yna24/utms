@@ -58,25 +58,17 @@ class YGK(User, IReviewer):
         intibak_repo = get_intibak_repository()
         return intibak_repo.update_course_grade(course_id, grade)
 
-    def approve_for_oidb(self, application_id: int, gpa: float, ranking_score: float | None) -> OperationResult:
-        """Save GPA/ranking score and forward application back to OIDB for ranking."""
+    def approve_for_oidb(self, application_id: int, ranking_score: float | None) -> OperationResult:
+        """Save ranking score and forward application back to OIDB."""
         intibak_repo = get_intibak_repository()
         table_result = intibak_repo.get_or_create_table(application_id)
         if not table_result.success:
             return table_result
-        save_result = intibak_repo.save_estimated_gpa(table_result.data.id, gpa, ranking_score)
+        save_result = intibak_repo.save_ranking_score(table_result.data.id, ranking_score)
         if not save_result.success:
             return save_result
         app_repo = get_application_repository()
         return app_repo.update_status(application_id, "intibak_complete")
-
-    def save_estimated_gpa(self, application_id: int, gpa: float, ranking_score: float | None = None) -> OperationResult:
-        """Persist the AKTS-weighted estimated GPA (and optional ranking score) onto the intibak table."""
-        intibak_repo = get_intibak_repository()
-        table_result = intibak_repo.get_or_create_table(application_id)
-        if not table_result.success:
-            return table_result
-        return intibak_repo.save_estimated_gpa(table_result.data.id, gpa, ranking_score)
 
     def get_document(self, doc_id: int) -> OperationResult:
         """Retrieve an application document by ID (for transcript viewing)."""

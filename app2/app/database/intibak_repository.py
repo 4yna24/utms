@@ -80,12 +80,11 @@ class IntibakRepository:
             return OperationResult.error(ErrorCode.DB_ERROR, str(exc))
 
     @staticmethod
-    def save_estimated_gpa(table_id: int, gpa: float, ranking_score: float | None = None) -> OperationResult:
+    def save_ranking_score(table_id: int, ranking_score: float | None) -> OperationResult:
         try:
             table = IntibakTableORM.query.get(table_id)
             if not table:
                 return OperationResult.error(ErrorCode.NOT_FOUND, "Intibak table not found.")
-            table.estimated_gpa = round(gpa, 4)
             if ranking_score is not None:
                 table.ranking_score = round(ranking_score, 4)
             db.session.commit()

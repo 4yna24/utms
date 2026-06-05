@@ -66,42 +66,18 @@ def update_course(course_id: int):
     return jsonify({"success": False, "error": result.error_msg}), 400
 
 
-_OYSM_MIN, _OYSM_MAX = 100.0, 560.0
-
-
-def _calc_ranking_score(gpa: float, app_obj) -> float | None:
-    """Composite ranking score 0–100: 50% GPA (normalised) + 50% OYSM (normalised 100–560).
-    Falls back to GPA-only (scaled to 0–100) when OYSM is absent."""
+def _calc_ranking_score(app_obj) -> float | None:
+    """Horizontal transfer ranking score (0–100):
+    score = (oysm / 560) * 90  +  (current_gpa / 4.0) * 10
+    Uses the applicant's submitted GPA and OYSM. Returns None when either is absent."""
     try:
-        gpa_comp = (gpa / 4.0) * 50.0
-        oysm_raw = float(app_obj.oysm_points) if app_obj and app_obj.oysm_points else None
-        if oysm_raw is not None:
-            clamped   = max(_OYSM_MIN, min(_OYSM_MAX, oysm_raw))
-            oysm_comp = ((clamped - _OYSM_MIN) / (_OYSM_MAX - _OYSM_MIN)) * 50.0
-            return round(gpa_comp + oysm_comp, 4)
-        return round(gpa_comp * 2, 4)
+        oysm = float(app_obj.oysm_points) if app_obj and app_obj.oysm_points else None
+        gpa  = float(app_obj.current_gpa)  if app_obj and app_obj.current_gpa  else None
+        if oysm is None or gpa is None:
+            return None
+        return round((oysm / 560.0) * 90.0 + (gpa / 4.0) * 10.0, 4)
     except (TypeError, ValueError):
         return None
-
-
-@ygk_api_bp.route("/intibak/<int:app_id>/save-gpa", methods=["PATCH"])
-@role_required("ygk")
-def save_gpa(app_id: int):
-    data = request.get_json(silent=True) or {}
-    try:
-        gpa = float(data.get("estimated_gpa", 0))
-    except (TypeError, ValueError):
-        return jsonify({"success": False, "error": "Invalid GPA value."}), 400
-    app_obj = ApplicationORM.query.get(app_id)
-    ranking_score = _calc_ranking_score(gpa, app_obj)
-    result = _get_service().save_estimated_gpa(app_id, gpa, ranking_score)
-    if result.success:
-        return jsonify({
-            "success": True,
-            "estimated_gpa": round(gpa, 4),
-            "ranking_score": ranking_score,
-        })
-    return jsonify({"success": False, "error": result.error_msg}), 400
 
 
 @ygk_api_bp.route("/intibak/<int:app_id>/export-json", methods=["GET"])
@@ -128,16 +104,11 @@ def export_json(app_id: int):
 @ygk_api_bp.route("/intibak/<int:app_id>/send-to-oidb", methods=["POST"])
 @role_required("ygk")
 def send_to_oidb(app_id: int):
-    data = request.get_json(silent=True) or {}
-    try:
-        gpa = float(data.get("estimated_gpa", 0))
-    except (TypeError, ValueError):
-        gpa = 0.0
     app_obj = ApplicationORM.query.get(app_id)
     if not app_obj:
         return jsonify({"success": False, "error": "Application not found."}), 404
-    ranking_score = _calc_ranking_score(gpa, app_obj)
-    result = _get_service().approve_for_oidb(app_id, gpa, ranking_score)
+    ranking_score = _calc_ranking_score(app_obj)
+    result = _get_service().approve_for_oidb(app_id, ranking_score)
     if result.success:
         return jsonify({"success": True, "ranking_score": ranking_score})
     return jsonify({"success": False, "error": result.error_msg}), 400

@@ -338,7 +338,7 @@ Defined in `config.py` as `APPLICATION_TRACKER_STEPS` (maps 1:1 to index in `APP
 
 ### Form validation (`validate_form_data`)
 
-All fields are mandatory: `full_name`, `id_number`, `target_program`, `target_semester`, `current_gpa`, `source_university`, `oysm_points`.
+All fields are mandatory: `full_name`, `id_number`, `target_program`, `target_semester`, `current_gpa`, `source_university`, `oysm_points`. Both `current_gpa` and `oysm_points` feed directly into the ranking score formula — they must be accurate.
 
 - **Turkish National ID** — validated by `validate_turkish_id()` (module-level function in `applicant.py`): must be 11 digits, first digit non-zero, passes the standard checksum algorithm.
 - **GPA** — must be a float in [0.00, 4.00].
@@ -404,6 +404,7 @@ Slugs are computed from tab titles by `_slugify()` in `dashboard.py`:
 | Applicant | Submit Application | `submit-application` | `panel-1` |
 | Applicant | Track Application | `track-application` | `panel-2` |
 | OIDB | Check Documents | `check-documents` | `panel-1` |
+| OIDB | Create Ranking Table | `create-ranking-table` | `panel-2` |
 | Dean | Receive & Forward Applications | `receive-forward-applications` | `panel-1` |
 | YDYO | Set Prep School Status | `set-prep-school-status` | `panel-1` |
 | YGK | Check Applicants | `check-applicants` | `panel-1` |
@@ -536,11 +537,11 @@ New columns require two changes or existing databases will break on startup:
 
 The helper runs `ALTER TABLE application ADD COLUMN …` for any missing column at startup, keeping existing SQLite files compatible.
 
-Columns currently managed by this helper: `id_number`, `target_program`, `target_semester`, `is_currently_enrolled`, `oidb_notes`, `prep_school_status`, `forwarded_faculty`, `last_edited_by_id`, `last_edited_at`, `estimated_gpa`, `oysm_points`, `doc_checker_status`, `doc_checker_errors`, `dean_notes`.
+Columns currently managed by this helper: `id_number`, `target_program`, `target_semester`, `is_currently_enrolled`, `oidb_notes`, `prep_school_status`, `forwarded_faculty`, `last_edited_by_id`, `last_edited_at`, `oysm_points`, `doc_checker_status`, `doc_checker_errors`, `dean_notes`.
 
 The same pattern is used for other tables:
 - `_ensure_user_department_column()` — adds `department VARCHAR(120)` to `user` table (for YGK routing)
-- `_ensure_intibak_estimated_gpa_column()` — adds `estimated_gpa FLOAT` and `ranking_score FLOAT` to `intibak_table`
+- `_ensure_intibak_estimated_gpa_column()` — adds `ranking_score FLOAT` to `intibak_table` (also adds the legacy `estimated_gpa FLOAT` for backwards compatibility with existing databases)
 
 When adding a new ORM model entirely (e.g. `IntibakTableORM`), `db.create_all()` handles creating it on a fresh database. The `_ensure_*` helpers are only needed for columns added to **existing** tables after the model was first deployed.
 
@@ -568,7 +569,7 @@ Status badges use `.status-badge.status-<status>` classes defined in `main.css`.
 |------|-----------|-----------|-------------------|------------------------|
 | Admin | `classes/users/admin.py` | `routes/admin.py` | `panel_admin_*.html` (3 tabs) | ✓ |
 | Applicant | `classes/users/applicant.py` | `routes/applicant.py` | `panel_applicant_*.html` | ✓ |
-| OIDB | `classes/users/oidb.py` | `routes/oidb.py` | `panel_oidb_documents.html` | ✓ |
+| OIDB | `classes/users/oidb.py` | `routes/oidb.py` | `panel_oidb_documents.html`, `panel_oidb_ranking.html` | ✓ |
 | Dean | `classes/users/dean.py` | `routes/dean.py` | `panel_dean_applications.html` | ✓ |
 | YDYO | `classes/users/ydyo.py` | `routes/ydyo.py` | `panel_ydyo_documents.html` | ✓ |
 | YGK | `classes/users/ygk.py` | `routes/ygk.py` | `panel_ygk_applicants.html`, `panel_ygk_intibak.html` | ✓ |
@@ -583,8 +584,10 @@ Status badges use `.status-badge.status-<status>` classes defined in `main.css`.
 
 | ORM | Table | Key columns |
 |-----|-------|-------------|
-| `IntibakTableORM` | `intibak_table` | `application_id` (unique FK), `estimated_gpa` (Float), `ranking_score` (Float) |
+| `IntibakTableORM` | `intibak_table` | `application_id` (unique FK), `ranking_score` (Float) |
 | `IntibakCourseORM` | `intibak_course` | `intibak_table_id`, `side` ("left"/"right"/"taken"), `course_name`, `course_code`, `credits`, `akts`, `grade`, `position` |
+
+`estimated_gpa` column exists in older databases but is no longer written or read. Do not use it.
 
 `IntibakTableORM` has a `unique=True` FK to `application` — one intibak table per application, auto-created on first access by `IntibakRepository.get_or_create_table()`.
 
@@ -604,11 +607,11 @@ Status badges use `.status-badge.status-<status>` classes defined in `main.css`.
 
 `_VALID_GRADES` in `IntibakRepository` enforces this set server-side.
 
-**Ranking score formula** (server: `routes/ygk._calc_ranking_score`, client: JS `calcRankingScore()`):
+**Ranking score formula** (server: `routes/ygk._calc_ranking_score(app_obj)`):
 ```
-ranking_score = (gpa / 4.0) × 50  +  ((oysm − 100) / 460) × 50
+ranking_score = (oysm / 560) × 90  +  (current_gpa / 4.0) × 10
 ```
-Result range: 0–100. OYSM is clamped to [100, 560]. Falls back to `(gpa / 4.0) × 100` when OYSM is absent. Both server and client use identical formulas so the live display matches what gets saved.
+Result range: 0–100. Uses the applicant's submitted `oysm_points` (90 % weight) and submitted `current_gpa` (10 % weight). Returns `None` when either field is absent. The ranking score is computed at "Send to OIDB" time and stored in `IntibakTableORM.ranking_score`. The intibak template shows the pre-computed score from the server — there is no live JS recalculation.
 
 **YGK class methods** (`classes/users/ygk.py`):
 
@@ -619,8 +622,7 @@ Result range: 0–100. OYSM is clamped to [100, 560]. Falls back to `(gpa / 4.0)
 | `add_course(app_id, side, data)` | Add a course row (side: "left"/"right"/"taken") |
 | `delete_course(course_id)` | Delete a course row |
 | `update_course_grade(course_id, grade)` | Update grade on one row |
-| `save_estimated_gpa(app_id, gpa, ranking_score)` | Save GPA + ranking score on the intibak table |
-| `approve_for_oidb(app_id, gpa, ranking_score)` | Save GPA/ranking + set status `intibak_complete` |
+| `approve_for_oidb(app_id, ranking_score)` | Save ranking score + set status `intibak_complete` |
 | `get_document(doc_id)` | Fetch a document ORM (for transcript viewing) |
 
 **YGK routes** (`routes/ygk.py`, prefix `/api/ygk/`):
@@ -630,13 +632,12 @@ Result range: 0–100. OYSM is clamped to [100, 560]. Falls back to `(gpa / 4.0)
 | `/intibak/<app_id>/add-course` | POST | Add course row; returns `{success, course}` |
 | `/intibak/course/<course_id>` | DELETE | Remove course row |
 | `/intibak/course/<course_id>` | PATCH | Update grade; returns `{success, course}` |
-| `/intibak/<app_id>/save-gpa` | PATCH | Save estimated GPA + calculated ranking score |
-| `/intibak/<app_id>/send-to-oidb` | POST | Save GPA/ranking + set status `intibak_complete` |
+| `/intibak/<app_id>/send-to-oidb` | POST | Compute ranking from `current_gpa`+`oysm_points`, save it, set status `intibak_complete` |
 | `/intibak/<app_id>/export-json` | GET | Download intibak table as JSON via `IntibakExporter` |
 | `/view-document/<doc_id>` | GET | Serve transcript PDF |
 
 **`IntibakExporter`** (`classes/intibak_exporter.py`):
-- `to_dict()` — canonical export: `export_version`, `exported_at`, `application` info, `estimated_gpa`, `applicant_courses`, `equivalent_courses`, `courses_to_take` (no grade in `courses_to_take`)
+- `to_dict()` — canonical export: `export_version`, `exported_at`, `application` info, `applicant_courses`, `equivalent_courses`, `courses_to_take` (no grade in `courses_to_take`)
 - `to_json(indent=2)` — JSON string from `to_dict()`
 - Future `to_pdf()` can use the same `to_dict()` as input
 
@@ -650,10 +651,9 @@ Result range: 0–100. OYSM is clamped to [100, 560]. Falls back to `(gpa / 4.0)
 **Intibak Table UI** (`templates/partials/panel_ygk_intibak.html`):
 - Three tables: Left (applicant's courses, manual entry), Right (equivalent courses from curriculum), Taken (courses to be taken from curriculum — no grade column)
 - **Connect Rows** button: multi-select left rows (toggle), single-select right row, confirm → AKTS-weighted grade computed from left rows and written to right row via PATCH
-- **GPA / Ranking bars**: live-updating as grades change; shown below the right table
-- **Export to JSON | Save | Send to OIDB** buttons at the bottom
-- Save: flashes green for 1s then reverts (courses are auto-saved on every CRUD op; Save explicitly persists estimated GPA + ranking score)
-- Send to OIDB: saves GPA/ranking + changes status + calls `window.dashboardForceRefresh('panel-1', 'check-applicants')` to force-reload the applicant list with updated status
+- **Ranking Score bar**: static display of the pre-computed score (from `current_gpa` + `oysm_points`), injected server-side as `ranking_score`. There is no live GPA recalculation — estimated GPA has been removed.
+- **Export to JSON | Send to OIDB** buttons at the bottom (Save button has been removed — courses auto-save on every grade change)
+- Send to OIDB: computes ranking from `current_gpa`/`oysm_points` on server, saves to `IntibakTableORM.ranking_score`, changes status to `intibak_complete`, then calls `window.dashboardForceRefresh('panel-1', 'check-applicants')` to force-reload the applicant list
 - Applicants with `intibak_complete` status show "Intibak Complete ✓" (non-clickable) instead of the "Open Intibak Table" button
 
 **Inline `<script>` execution**: Tab content is loaded via `innerHTML`. Browsers do not execute `<script>` tags inserted that way. `fetchTabContent` in `dashboard.js` re-executes them by replacing each `<script>` element with a newly created one (standard workaround).
@@ -672,6 +672,12 @@ Result range: 0–100. OYSM is clamped to [100, 560]. Falls back to `(gpa / 4.0)
 | `auto_forward_checked()` | Forward all `submitted` apps that already passed the checker — **does not re-run checker** |
 | `auto_check_and_forward_all()` | Legacy combined: run checker + forward passers in one step |
 
+### OIDB — Create Ranking Table tab
+
+`panel_oidb_ranking.html` — shows all `intibak_complete` applications sorted by `ranking_score` DESC. A program dropdown lets OIDB filter by `target_program`. Selecting a program re-fetches the partial with `?program=<name>`. The filter dropdown and table headers are always rendered — an empty filtered result shows a message only in `<tbody>`, never collapses the whole UI.
+
+Data flow: `_get_tab_data("oidb", "create-ranking-table")` calls `ApplicationRepository.get_intibak_complete_apps()` (eagerly loads `intibak_table`), sorts by `ranking_score` DESC, filters by `program` query param if provided.
+
 ### OIDB routes (`routes/oidb.py`, prefix `/api/oidb/`)
 
 | Route | Method |
@@ -682,7 +688,7 @@ Result range: 0–100. OYSM is clamped to [100, 560]. Falls back to `(gpa / 4.0)
 | `POST /cancel-forward-to-ydyo/<id>` | Cancel forward |
 | `POST /return-application/<id>` | Return to applicant |
 | `GET /view-document/<doc_id>` | Serve document PDF |
-| YGK | `classes/users/ygk.py` | `routes/ygk.py` | — (partial: None) | — |
+| `GET /create-ranking-table` | 204 stub; ranking data served via `_get_tab_data` |
 
 ---
 

@@ -34,9 +34,7 @@ class ApplicationORM(db.Model):
 
     # Academic scores
     current_gpa = db.Column(db.String(16), nullable=False)
-    # Estimated GPA set by YGK after the intibak (credit transfer) evaluation
-    estimated_gpa = db.Column(db.String(16), nullable=True)
-    # OYSM composite score submitted by the applicant
+    # ÖSYS/YKS score submitted by the applicant
     oysm_points = db.Column(db.String(16), nullable=True)
 
     # Workflow

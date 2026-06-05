@@ -109,6 +109,25 @@ def _get_tab_data(
     per_page = _PER_PAGE
     offset = (page - 1) * per_page
 
+    if role_slug == "oidb" and tab_slug == "create-ranking-table":
+        from ..database import get_application_repository
+        result = get_application_repository().get_intibak_complete_apps()
+        all_apps = result.data or []
+        # Sort by ranking_score DESC; apps with no score go last
+        all_apps.sort(
+            key=lambda a: -(a.intibak_table.ranking_score or 0) if a.intibak_table else 0
+        )
+        # Unique programs present in the ranking data
+        programs = sorted({a.target_program for a in all_apps if a.target_program})
+        selected_program = request.args.get("program", "all")
+        ranked = [a for a in all_apps if a.target_program == selected_program] \
+                 if selected_program != "all" else all_apps
+        return {
+            "ranking_apps": ranked,
+            "ranking_programs": programs,
+            "selected_program": selected_program,
+        }
+
     if role_slug == "oidb" and tab_slug == "check-documents":
         from ..classes import Oidb
         all_apps = Oidb(user_id, email, "oidb").get_pending_applicants()
@@ -242,6 +261,15 @@ def _get_tab_data(
             right_courses = [c for c in intibak_table.courses if c.side == "right"]
             taken_courses = [c for c in intibak_table.courses if c.side == "taken"]
 
+        # Pre-compute ranking score from applicant's submitted GPA + OYSM (no estimated GPA)
+        ranking_score = None
+        if selected_app and selected_app.oysm_points and selected_app.current_gpa:
+            try:
+                oysm = float(selected_app.oysm_points)
+                gpa  = float(selected_app.current_gpa)
+                ranking_score = round((oysm / 560.0) * 90.0 + (gpa / 4.0) * 10.0, 4)
+            except (TypeError, ValueError):
+                pass
         return {
             "selected_application": selected_app,
             "intibak_table": intibak_table,
@@ -249,8 +277,7 @@ def _get_tab_data(
             "right_courses": right_courses,
             "taken_courses": taken_courses,
             "curriculum": curriculum,
-            "saved_estimated_gpa": intibak_table.estimated_gpa if intibak_table else None,
-            "saved_ranking_score": intibak_table.ranking_score if intibak_table else None,
+            "ranking_score": ranking_score,
         }
 
     if role_slug == "admin":

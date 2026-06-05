@@ -104,7 +104,7 @@ class MockDocumentChecker(IDocumentChecker):
 
     Checks:
       - Required document slots (1-3) are present
-      - current_gpa is a number in [2.00, 4.00]
+      - current_gpa is a number in [2.50, 4.00]
       - id_number is non-empty and numeric
 
     Does NOT inspect actual file contents — a production implementation would.
@@ -125,11 +125,11 @@ class MockDocumentChecker(IDocumentChecker):
 
         try:
             gpa = float(application.current_gpa or 0)
-            if gpa < 2.0:
+            if gpa < 2.5:
                 errors.append(DocumentCheckError(
                     type="field",
                     field_name="current_gpa",
-                    reason=f"GPA {gpa:.2f} is below the minimum required 2.00.",
+                    reason=f"GPA {gpa:.2f} is below the minimum required 2.50.",
                 ))
         except (ValueError, TypeError):
             errors.append(DocumentCheckError(

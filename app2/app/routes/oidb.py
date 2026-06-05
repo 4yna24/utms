@@ -27,12 +27,11 @@ def check_documents():
     return render_template("oidb_check_documents.html", applications=service.get_pending_applicants())
 
 
-@oidb_api_bp.route("/create-waitlist-table", methods=["GET"])
+@oidb_api_bp.route("/create-ranking-table", methods=["GET"])
 @role_required("oidb")
-def create_waitlist_table():
-    """Placeholder for waitlist table creation."""
-    from flask import jsonify
-    return jsonify({"tab": "Create Waitlist Table", "status": "Phase 1 shell"})
+def create_ranking_table():
+    """Ranking table — handled by dashboard tab partial loader."""
+    return "", 204
 
 
 @oidb_api_bp.route("/forward-to-ydyo/<int:application_id>", methods=["POST"])

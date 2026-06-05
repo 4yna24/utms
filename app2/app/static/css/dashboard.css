@@ -418,6 +418,35 @@
     margin-bottom: 14px;
 }
 
+.ranking-header-bar {
+    margin-bottom: 14px;
+}
+.ranking-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.ranking-filter-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+}
+.ranking-program-select {
+    font-size: 13px;
+    padding: 5px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #fff;
+    color: #111827;
+    cursor: pointer;
+    min-width: 200px;
+}
+.ranking-program-select:focus {
+    outline: 2px solid #6366f1;
+    outline-offset: 1px;
+}
+
 .panel-actions-bar {
     display: flex;
     align-items: center;

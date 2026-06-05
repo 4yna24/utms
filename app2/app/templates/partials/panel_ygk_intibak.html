@@ -138,19 +138,11 @@
             <button type="button" class="soft-btn compact open-picker-btn" data-side="right">+ Add from Curriculum</button>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-            <div id="gpa-bar" style="display:inline-flex; align-items:baseline; gap:6px;
-                 padding:8px 14px; background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px;">
-                <span style="font-size:12px; font-weight:600; color:#0369a1;">Estimated GPA</span>
-                <span id="gpa-display" style="font-size:18px; font-weight:800; color:#0369a1; margin-left:2px;">
-                    {%- if saved_estimated_gpa -%}{{ '%.2f'|format(saved_estimated_gpa) }}{%- else -%}—{%- endif -%}
-                </span>
-                <span style="font-size:12px; color:#6b7280;">/ 4.00</span>
-            </div>
-            <div id="ranking-bar" style="display:inline-flex; align-items:baseline; gap:6px;
+            <div style="display:inline-flex; align-items:baseline; gap:6px;
                  padding:8px 14px; background:#fdf4ff; border:1px solid #e9d5ff; border-radius:8px;">
                 <span style="font-size:12px; font-weight:600; color:#7c3aed;">Ranking Score</span>
-                <span id="ranking-display" style="font-size:18px; font-weight:800; color:#7c3aed; margin-left:2px;">
-                    {%- if saved_ranking_score -%}{{ '%.2f'|format(saved_ranking_score) }}{%- else -%}—{%- endif -%}
+                <span style="font-size:18px; font-weight:800; color:#7c3aed; margin-left:2px;">
+                    {%- if ranking_score is not none -%}{{ '%.2f'|format(ranking_score) }}{%- else -%}—{%- endif -%}
                 </span>
                 <span style="font-size:12px; color:#6b7280;">/ 100</span>
             </div>
@@ -197,7 +189,6 @@
 <div id="intibak-action-strip"
      style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;
             margin-bottom:24px; padding:14px 16px; border-top:1px solid #e5e7eb;">
-    <button type="button" id="save-intibak-btn" class="soft-btn">Save</button>
     <button type="button" id="send-oidb-btn" class="soft-btn">Send to OIDB</button>
     <a href="{{ url_for('ygk_api.export_json', app_id=selected_application.id) }}"
        class="soft-btn compact alt">Export to JSON</a>
@@ -234,7 +225,6 @@
     var APP_ID     = {{ selected_application.id }};
     var curriculum = {{ curriculum | tojson }};
     var OYSM_POINTS = {{ selected_application.oysm_points | float if selected_application.oysm_points else 'null' }};
-    var OYSM_MIN = 100, OYSM_MAX = 560;
     var pickerSide = null;
 
     var gradeOptions = ['', 'AA', 'AB', 'BB', 'BC', 'CC', 'CD', 'DD', 'DF', 'FF'];
@@ -417,50 +407,6 @@
         });
     }
 
-    // ── Estimated GPA (right table, AKTS-weighted) ──
-    function calcRightGpa() {
-        var rows = Array.from(document.querySelectorAll('#right-tbody tr[data-course-id]'));
-        var totalAkts = 0, totalWeighted = 0;
-        rows.forEach(function(tr) {
-            var gradeEl = tr.querySelector('.grade-select');
-            var grade   = gradeEl ? gradeEl.value : '';
-            var akts    = parseFloat((tr.cells[3] || {}).textContent) || 0; // col 3 = AKTS in right table
-            var pts     = {'AA':4.00,'AB':3.50,'BB':3.00,'BC':2.50,
-                           'CC':2.00,'CD':1.50,'DD':1.00,'DF':0.50,'FF':0.00}[grade];
-            if (akts > 0 && pts !== undefined && grade) {
-                totalAkts     += akts;
-                totalWeighted += akts * pts;
-            }
-        });
-        return totalAkts > 0 ? Math.round((totalWeighted / totalAkts) * 10000) / 10000 : null;
-    }
-
-    function calcRankingScore(gpa) {
-        if (gpa === null) return null;
-        var gpaComp = (gpa / 4.0) * 50;
-        if (OYSM_POINTS !== null) {
-            var clamped  = Math.max(OYSM_MIN, Math.min(OYSM_MAX, OYSM_POINTS));
-            var oysmComp = ((clamped - OYSM_MIN) / (OYSM_MAX - OYSM_MIN)) * 50;
-            return Math.round((gpaComp + oysmComp) * 100) / 100;
-        }
-        return Math.round(gpaComp * 2 * 100) / 100; // GPA-only fallback
-    }
-
-    function refreshDisplays() {
-        var gpa   = calcRightGpa();
-        var score = calcRankingScore(gpa);
-        document.getElementById('gpa-display').textContent     = gpa   !== null ? gpa.toFixed(2)   : '—';
-        document.getElementById('ranking-display').textContent = score !== null ? score.toFixed(2) : '—';
-    }
-
-    // Recalculate whenever a grade in the right tbody changes
-    document.getElementById('right-tbody').addEventListener('change', function(e) {
-        if (e.target.classList.contains('grade-select')) refreshDisplays();
-    });
-
-    // Recalculate on initial load (handles pre-loaded courses)
-    refreshDisplays();
-
     // ── Bottom action helpers ──
     function showActionMsg(msg, ok) {
         var el = document.getElementById('action-msg');
@@ -469,54 +415,13 @@
         el.style.display = '';
     }
 
-    // Save — persists estimated GPA (courses are auto-saved on every change)
-    document.getElementById('save-intibak-btn').addEventListener('click', function() {
-        var gpa = calcRightGpa();
-        var btn = this;
-        btn.disabled = true;
-        fetch('/api/ygk/intibak/' + APP_ID + '/save-gpa', {
-            method: 'PATCH',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({estimated_gpa: gpa !== null ? gpa : 0})
-        }).then(function(r){ return r.json(); }).then(function(d) {
-            if (d.success) {
-                // Flash green for 1s then revert — further edits are not auto-saved
-                btn.style.background = '#16a34a';
-                btn.style.borderColor = '#16a34a';
-                btn.style.color = '#fff';
-                setTimeout(function() {
-                    btn.style.background = btn.style.borderColor = btn.style.color = '';
-                }, 1000);
-            } else {
-                btn.style.background = '#dc2626';
-                btn.style.borderColor = '#dc2626';
-                btn.style.color = '#fff';
-                showActionMsg('Save failed: ' + (d.error || 'unknown error'), false);
-                setTimeout(function() {
-                    btn.style.background = btn.style.borderColor = btn.style.color = '';
-                }, 2000);
-            }
-            btn.disabled = false;
-        }).catch(function() {
-            btn.style.background = '#dc2626';
-            btn.style.color = '#fff';
-            showActionMsg('Save failed: network error.', false);
-            setTimeout(function() {
-                btn.style.background = btn.style.borderColor = btn.style.color = '';
-            }, 2000);
-            btn.disabled = false;
-        });
-    });
-
-    // Send to OIDB — saves GPA+ranking then changes status, then navigates back to Check Applicants
+    // Send to OIDB — saves ranking score and changes status to intibak_complete
     document.getElementById('send-oidb-btn').addEventListener('click', function() {
         var btn = this;
-        var gpa = calcRightGpa();
         btn.disabled = true;
         fetch('/api/ygk/intibak/' + APP_ID + '/send-to-oidb', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({estimated_gpa: gpa !== null ? gpa : 0})
+            headers: {'Content-Type': 'application/json'}
         })
         .then(function(r) { return r.json(); })
         .then(function(d) {

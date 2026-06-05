@@ -101,9 +101,6 @@
                                             {% if gpa_errs %}<span class="checker-error"> ⚠ {{ gpa_errs[0].reason }}</span>{% endif %}
                                         </span>
 
-                                        {% if app.estimated_gpa %}
-                                            <span class="detail-label">Est. GPA (Intibak)</span><span>{{ app.estimated_gpa }}</span>
-                                        {% endif %}
                                         {% if app.oysm_points %}
                                             <span class="detail-label">OYSM Points</span><span>{{ app.oysm_points }}</span>
                                         {% endif %}

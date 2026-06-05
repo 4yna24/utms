@@ -155,6 +155,27 @@ class ApplicationRepository:
             )
 
     @staticmethod
+    def get_intibak_complete_apps() -> OperationResult:
+        """Get all intibak_complete applications with their ranking data loaded."""
+        try:
+            from ..models.intibak import IntibakTableORM
+            apps = (
+                ApplicationORM.query.options(
+                    selectinload(ApplicationORM.intibak_table),
+                    selectinload(ApplicationORM.applicant),
+                )
+                .filter_by(status="intibak_complete")
+                .order_by(ApplicationORM.created_at.desc())
+                .all()
+            )
+            return OperationResult.ok(data=apps)
+        except Exception as exc:
+            return OperationResult.error(
+                ErrorCode.DB_ERROR,
+                f"Failed to fetch ranking applications: {str(exc)}"
+            )
+
+    @staticmethod
     def get_pending_for_oidb() -> OperationResult:
         """Get applications pending OIDB review."""
         try:

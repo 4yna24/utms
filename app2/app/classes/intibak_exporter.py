@@ -30,7 +30,6 @@ class IntibakExporter:
                 "target_semester": self._app.target_semester or "",
                 "current_gpa": str(self._app.current_gpa or ""),
             },
-            "estimated_gpa": self._table.estimated_gpa,
             "applicant_courses": [
                 self._course_dict(c) for c in courses if c.side == "left"
             ],
