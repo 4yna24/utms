@@ -16,6 +16,8 @@ class UserORM(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), nullable=False)
     role = db.Column(db.String(32), nullable=False, index=True)
+    # For YGK users: the department key they belong to (e.g. "computer_engineering")
+    department = db.Column(db.String(120), nullable=True)
     password_hash = db.Column(db.String(255), nullable=False)
     application = db.relationship("ApplicationORM", back_populates="applicant", uselist=False)
 

@@ -30,6 +30,20 @@ def _auto_fingerprint_application(session, flush_context, instances):
             obj.last_edited_at = now
 
 
+def _ensure_user_department_column():
+    """Add department column to user table on existing SQLite databases."""
+    with db.engine.begin() as conn:
+        table_exists = conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='user'")
+        ).fetchone()
+        if not table_exists:
+            return
+        columns = conn.execute(text('PRAGMA table_info("user")')).fetchall()
+        column_names = {col[1] for col in columns}
+        if "department" not in column_names:
+            conn.execute(text('ALTER TABLE "user" ADD COLUMN department VARCHAR(120)'))
+
+
 def _ensure_user_role_column():
     # Keep old SQLite files compatible with the new role-based user model.
     with db.engine.begin() as conn:
@@ -80,6 +94,20 @@ def _ensure_application_new_columns():
             if col_name not in column_names:
                 conn.execute(text(f'ALTER TABLE "application" ADD COLUMN {col_name} {col_def}'))
 
+def _ensure_intibak_estimated_gpa_column():
+    with db.engine.begin() as conn:
+        exists = conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='intibak_table'")
+        ).fetchone()
+        if not exists:
+            return
+        cols = {r[1] for r in conn.execute(text("PRAGMA table_info(intibak_table)")).fetchall()}
+        if "estimated_gpa" not in cols:
+            conn.execute(text("ALTER TABLE intibak_table ADD COLUMN estimated_gpa FLOAT"))
+        if "ranking_score" not in cols:
+            conn.execute(text("ALTER TABLE intibak_table ADD COLUMN ranking_score FLOAT"))
+
+
 def create_app(test_config: dict | None = None):
     app = Flask(__name__)
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "utms-1234")
@@ -119,6 +147,8 @@ def create_app(test_config: dict | None = None):
         Path(app.config["APPLICATION_UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
         db.create_all()
         _ensure_user_role_column()
+        _ensure_user_department_column()
         _ensure_application_new_columns()
+        _ensure_intibak_estimated_gpa_column()
 
     return app

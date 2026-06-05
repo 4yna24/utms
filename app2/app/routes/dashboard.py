@@ -21,6 +21,7 @@ from ..config import (
     PHASE1_TABS,
     ROLE_DEFINITIONS,
 )
+from ..curricula import get_curriculum
 from ..programs import PROGRAMS_BY_FACULTY
 from ..models import ApplicationORM
 from .common import login_required
@@ -139,7 +140,6 @@ def _get_tab_data(
         apps = _sort_apps(_filter_apps(all_apps, filter_status), sort_col, sort_dir, col_map)
         return {
             "dean_applications": apps[offset:offset + per_page],
-            "available_faculties": AVAILABLE_FACULTIES,
             "document_slots": APPLICATION_DOCUMENT_SLOTS,
             "pagination": _build_pagination(len(apps), page, per_page),
             "status_counts": status_counts,
@@ -196,6 +196,63 @@ def _get_tab_data(
             "resubmission_allowed": APPLICATION_RESUBMISSION_ALLOWED,
         }
 
+    if role_slug == "ygk" and tab_slug == "check-applicants":
+        from ..classes import YGK
+        all_apps = YGK(user_id, email, "ygk").get_pending_applicants()
+        col_map = {
+            0: "id", 1: "full_name", 2: "target_program",
+            3: "source_university", 4: "current_gpa", 5: "target_semester",
+        }
+        status_counts = _status_counts(all_apps, ["forwarded_to_ygk", "intibak_complete"])
+        apps = _sort_apps(_filter_apps(all_apps, filter_status), sort_col, sort_dir, col_map)
+        return {
+            "ygk_applications": apps[offset:offset + per_page],
+            "pagination": _build_pagination(len(apps), page, per_page),
+            "status_counts": status_counts,
+            "active_filter": filter_status,
+            "active_sort_col": sort_col,
+            "active_sort_dir": sort_dir,
+        }
+
+    if role_slug == "ygk" and tab_slug == "intibak-table":
+        app_id = request.args.get("app_id", type=int)
+        dept = session.get("user_department", "computer_engineering")
+        curriculum = get_curriculum(dept)
+        if app_id:
+            from ..classes import YGK
+            selected_app = (
+                ApplicationORM.query
+                .options(
+                    selectinload(ApplicationORM.documents),
+                    selectinload(ApplicationORM.applicant),
+                )
+                .get(app_id)
+            )
+            table_result = YGK(user_id, email, "ygk").get_intibak_table(app_id)
+            intibak_table = table_result.data if table_result.success else None
+        else:
+            selected_app = None
+            intibak_table = None
+
+        left_courses = []
+        right_courses = []
+        taken_courses = []
+        if intibak_table:
+            left_courses  = [c for c in intibak_table.courses if c.side == "left"]
+            right_courses = [c for c in intibak_table.courses if c.side == "right"]
+            taken_courses = [c for c in intibak_table.courses if c.side == "taken"]
+
+        return {
+            "selected_application": selected_app,
+            "intibak_table": intibak_table,
+            "left_courses": left_courses,
+            "right_courses": right_courses,
+            "taken_courses": taken_courses,
+            "curriculum": curriculum,
+            "saved_estimated_gpa": intibak_table.estimated_gpa if intibak_table else None,
+            "saved_ranking_score": intibak_table.ranking_score if intibak_table else None,
+        }
+
     if role_slug == "admin":
         from ..classes import Admin
         admin = Admin(user_id, email, "admin")
@@ -223,6 +280,11 @@ def index():
     email = session.get("user_email")
     _ROLE_DISPLAY = {**{r["slug"]: r["name"] for r in ROLE_DEFINITIONS}, "admin": "Administrator"}
     role_name = _ROLE_DISPLAY.get(role_slug, role_slug)
+    if role_slug == "ygk":
+        dept_key = session.get("user_department", "")
+        if dept_key:
+            dept_display = dept_key.replace("_", " ").title()
+            role_name = f"YGK – {dept_display} Department"
 
     return render_template(
         "dashboard.html",

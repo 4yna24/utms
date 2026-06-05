@@ -25,18 +25,24 @@ app/
 │   │   ├── dean.py         ← DeanOffice role (review, return to applicant/OIDB/YDYO, forward to YGK)
 │   │   ├── oidb.py         ← Oidb role (document verification)
 │   │   ├── ydyo.py         ← Ydyo role (prep school marking)
-│   │   ├── ygk.py          ← YGK role (approval)
+│   │   ├── ygk.py          ← YGK role (intibak table CRUD, GPA/ranking save, approve for OIDB)
 │   │   └── __init__.py
+│   ├── intibak_exporter.py ← IntibakExporter: to_dict() / to_json() for an intibak table
 │   ├── auth.py         ← Auth class (credentials, tokens)
 │   └── interfaces.py   ← IReviewer, IDocumentHandler abstract bases
+├── curricula/          ← Per-department curriculum data
+│   ├── __init__.py     ← CURRICULA dict, PROGRAM_DEPARTMENT_MAP, get_curriculum(), get_department_for_program()
+│   └── computer_engineering.py ← 43 CE courses (CENG/MATH/PHYS/ENG/ATA)
 ├── database/           ← Repository pattern
 │   ├── application_repository.py ← ApplicationRepository (all ApplicationORM queries)
+│   ├── intibak_repository.py ← IntibakRepository (IntibakTableORM + IntibakCourseORM)
 │   ├── interfaces.py   ← ILowLevelDatabase, IHighLevelDatabase, IUserRepository
 │   ├── adapters.py     ← SQLAlchemyUserDataService (implements IUserRepository)
 │   └── __init__.py
 ├── models/             ← SQLAlchemy ORM (data shape only, no logic)
-│   ├── user.py         ← UserORM
+│   ├── user.py         ← UserORM (includes `department` VARCHAR for YGK routing)
 │   ├── application.py  ← ApplicationORM, ApplicationDocumentORM
+│   ├── intibak.py      ← IntibakTableORM, IntibakCourseORM
 │   └── __init__.py
 ├── routes/             ← Thin HTTP controllers
 │   ├── admin.py        ← Admin API (role changes, backup, restore)
@@ -89,6 +95,8 @@ ORM model class names carry the `ORM` suffix so they are never confused with dom
 | `UserORM` | `user` | `models/user.py` |
 | `ApplicationORM` | `application` | `models/application.py` |
 | `ApplicationDocumentORM` | `application_document` | `models/application.py` |
+| `IntibakTableORM` | `intibak_table` | `models/intibak.py` |
+| `IntibakCourseORM` | `intibak_course` | `models/intibak.py` |
 
 **Rule**: When a class name does not match the default SQLAlchemy snake-case derivation, you MUST declare `__tablename__` explicitly. All three models above have it. If you add a new ORM model, always declare `__tablename__` to prevent silent table-name drift.
 
@@ -300,6 +308,7 @@ All `ApplicationORM.status` values and their meaning:
 | `forwarded_to_ydyo` | OIDB | OIDB approved; waiting for YDYO check |
 | `forwarded_to_dean` | YDYO | YDYO approved; waiting for Dean review |
 | `forwarded_to_ygk` | Dean | Dean approved; waiting for YGK intibak |
+| `intibak_complete` | YGK | Intibak table finalised; forwarded to OIDB for ranking |
 | `returned` | OIDB or Dean | Sent back to applicant for correction |
 | `cancelled` | Applicant | Cancelled by applicant |
 
@@ -321,7 +330,7 @@ Defined in `config.py` as `APPLICATION_TRACKER_STEPS` (maps 1:1 to index in `APP
 | 1 | YDYO Check | `forwarded_to_ydyo` |
 | 2 | Dean Review | `forwarded_to_dean` |
 | 3 | YGK Intibak | `forwarded_to_ygk` |
-| 4 | OIDB Ranking | *(future status — shows pending)* |
+| 4 | OIDB Ranking | `intibak_complete` |
 
 ---
 
@@ -397,6 +406,8 @@ Slugs are computed from tab titles by `_slugify()` in `dashboard.py`:
 | OIDB | Check Documents | `check-documents` | `panel-1` |
 | Dean | Receive & Forward Applications | `receive-forward-applications` | `panel-1` |
 | YDYO | Set Prep School Status | `set-prep-school-status` | `panel-1` |
+| YGK | Check Applicants | `check-applicants` | `panel-1` |
+| YGK | Intibak Table | `intibak-table` | `panel-2` |
 
 Panel IDs are assigned by `loop.index` in `dashboard.html` — they depend on tab order in `PHASE1_TABS`. Tab-jump buttons inside lazy-loaded partials must use the correct `data-target` panel ID. **Submit Application is `panel-1` for applicants** (it is listed first in `PHASE1_TABS["applicant"]`).
 
@@ -496,8 +507,10 @@ FLASK_APP=run.py flask seed-db --yes                   # skip confirmation (usef
 **`init-admin`** is idempotent — safe to run on every container boot. The Docker `entrypoint.sh` calls it before starting the server so the admin account always exists when the volume is fresh.
 
 **`seed-db`** wipes ALL data and recreates:
-- Staff: `admin@admin/admin`, `oidb@test/test`, `dean@test/test`, `ygk@test/test`, `ydyo@test/test`
-- Applicants `applicant1@test` … `applicant7@test` (password: `test`), one per workflow status
+- Staff: `admin@admin/admin`, `oidb@test/test`, `dean@test/test`, `ygk@test/test` (`department=computer_engineering`), `ydyo@test/test`
+- Applicants `applicant1@test` … `applicant12@test` (password: `test`), covering all workflow statuses and edge cases
+- `applicant7@test` has `forwarded_faculty="computer_engineering"` so `ygk@test` can see it
+- OYSM points use realistic 100–560 range (average ~400, e.g. 362.50, 418.00, 487.50)
 
 ---
 
@@ -524,6 +537,12 @@ New columns require two changes or existing databases will break on startup:
 The helper runs `ALTER TABLE application ADD COLUMN …` for any missing column at startup, keeping existing SQLite files compatible.
 
 Columns currently managed by this helper: `id_number`, `target_program`, `target_semester`, `is_currently_enrolled`, `oidb_notes`, `prep_school_status`, `forwarded_faculty`, `last_edited_by_id`, `last_edited_at`, `estimated_gpa`, `oysm_points`, `doc_checker_status`, `doc_checker_errors`, `dean_notes`.
+
+The same pattern is used for other tables:
+- `_ensure_user_department_column()` — adds `department VARCHAR(120)` to `user` table (for YGK routing)
+- `_ensure_intibak_estimated_gpa_column()` — adds `estimated_gpa FLOAT` and `ranking_score FLOAT` to `intibak_table`
+
+When adding a new ORM model entirely (e.g. `IntibakTableORM`), `db.create_all()` handles creating it on a fresh database. The `_ensure_*` helpers are only needed for columns added to **existing** tables after the model was first deployed.
 
 `ApplicationORM` also has computed `@property` fields (no column, no migration needed):
 - `parsed_checker_errors` — `doc_checker_errors` JSON decoded to a list of dicts, safe for template use
@@ -552,6 +571,94 @@ Status badges use `.status-badge.status-<status>` classes defined in `main.css`.
 | OIDB | `classes/users/oidb.py` | `routes/oidb.py` | `panel_oidb_documents.html` | ✓ |
 | Dean | `classes/users/dean.py` | `routes/dean.py` | `panel_dean_applications.html` | ✓ |
 | YDYO | `classes/users/ydyo.py` | `routes/ydyo.py` | `panel_ydyo_documents.html` | ✓ |
+| YGK | `classes/users/ygk.py` | `routes/ygk.py` | `panel_ygk_applicants.html`, `panel_ygk_intibak.html` | ✓ |
+
+### YGK role — full implementation
+
+**Department routing**: YGK users are differentiated by `UserORM.department` (VARCHAR, nullable). On login, `department` is stored in `session["user_department"]`. The `get_pending_applicants()` method filters applications by `forwarded_faculty == user_department`. When a Dean forwards to YGK, the department key is auto-derived from the application's `target_program` via `get_department_for_program()` in the `curricula` package (e.g. `"Computer Engineering"` → `"computer_engineering"`).
+
+**Dashboard title** — when `role_slug == "ygk"`, `dashboard.py` builds `role_name` as `"YGK – <Department Name> Department"` from the session's `user_department` key (converted with `.replace('_', ' ').title()`).
+
+**Intibak table data model**:
+
+| ORM | Table | Key columns |
+|-----|-------|-------------|
+| `IntibakTableORM` | `intibak_table` | `application_id` (unique FK), `estimated_gpa` (Float), `ranking_score` (Float) |
+| `IntibakCourseORM` | `intibak_course` | `intibak_table_id`, `side` ("left"/"right"/"taken"), `course_name`, `course_code`, `credits`, `akts`, `grade`, `position` |
+
+`IntibakTableORM` has a `unique=True` FK to `application` — one intibak table per application, auto-created on first access by `IntibakRepository.get_or_create_table()`.
+
+**Grade scale** — 9 grades used across all intibak selects and AKTS-weighted calculations:
+
+| Grade | Points |
+|-------|--------|
+| AA | 4.00 |
+| AB | 3.50 |
+| BB | 3.00 |
+| BC | 2.50 |
+| CC | 2.00 |
+| CD | 1.50 |
+| DD | 1.00 |
+| DF | 0.50 |
+| FF | 0.00 |
+
+`_VALID_GRADES` in `IntibakRepository` enforces this set server-side.
+
+**Ranking score formula** (server: `routes/ygk._calc_ranking_score`, client: JS `calcRankingScore()`):
+```
+ranking_score = (gpa / 4.0) × 50  +  ((oysm − 100) / 460) × 50
+```
+Result range: 0–100. OYSM is clamped to [100, 560]. Falls back to `(gpa / 4.0) × 100` when OYSM is absent. Both server and client use identical formulas so the live display matches what gets saved.
+
+**YGK class methods** (`classes/users/ygk.py`):
+
+| Method | Purpose |
+|--------|---------|
+| `get_pending_applicants()` | `forwarded_to_ygk` + `intibak_complete` apps filtered by session department |
+| `get_intibak_table(app_id)` | Get-or-create `IntibakTableORM` |
+| `add_course(app_id, side, data)` | Add a course row (side: "left"/"right"/"taken") |
+| `delete_course(course_id)` | Delete a course row |
+| `update_course_grade(course_id, grade)` | Update grade on one row |
+| `save_estimated_gpa(app_id, gpa, ranking_score)` | Save GPA + ranking score on the intibak table |
+| `approve_for_oidb(app_id, gpa, ranking_score)` | Save GPA/ranking + set status `intibak_complete` |
+| `get_document(doc_id)` | Fetch a document ORM (for transcript viewing) |
+
+**YGK routes** (`routes/ygk.py`, prefix `/api/ygk/`):
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/intibak/<app_id>/add-course` | POST | Add course row; returns `{success, course}` |
+| `/intibak/course/<course_id>` | DELETE | Remove course row |
+| `/intibak/course/<course_id>` | PATCH | Update grade; returns `{success, course}` |
+| `/intibak/<app_id>/save-gpa` | PATCH | Save estimated GPA + calculated ranking score |
+| `/intibak/<app_id>/send-to-oidb` | POST | Save GPA/ranking + set status `intibak_complete` |
+| `/intibak/<app_id>/export-json` | GET | Download intibak table as JSON via `IntibakExporter` |
+| `/view-document/<doc_id>` | GET | Serve transcript PDF |
+
+**`IntibakExporter`** (`classes/intibak_exporter.py`):
+- `to_dict()` — canonical export: `export_version`, `exported_at`, `application` info, `estimated_gpa`, `applicant_courses`, `equivalent_courses`, `courses_to_take` (no grade in `courses_to_take`)
+- `to_json(indent=2)` — JSON string from `to_dict()`
+- Future `to_pdf()` can use the same `to_dict()` as input
+
+**Curricula package** (`curricula/`):
+- `CURRICULA` dict keyed by department string (e.g. `"computer_engineering"`)
+- `PROGRAM_DEPARTMENT_MAP` maps `target_program` string → department key
+- `get_department_for_program(target_program)` — used by Dean for auto-routing
+- `get_curriculum(department)` — used by dashboard `intibak-table` branch
+- Add new departments by creating a new module and registering it in `CURRICULA` + `PROGRAM_DEPARTMENT_MAP`
+
+**Intibak Table UI** (`templates/partials/panel_ygk_intibak.html`):
+- Three tables: Left (applicant's courses, manual entry), Right (equivalent courses from curriculum), Taken (courses to be taken from curriculum — no grade column)
+- **Connect Rows** button: multi-select left rows (toggle), single-select right row, confirm → AKTS-weighted grade computed from left rows and written to right row via PATCH
+- **GPA / Ranking bars**: live-updating as grades change; shown below the right table
+- **Export to JSON | Save | Send to OIDB** buttons at the bottom
+- Save: flashes green for 1s then reverts (courses are auto-saved on every CRUD op; Save explicitly persists estimated GPA + ranking score)
+- Send to OIDB: saves GPA/ranking + changes status + calls `window.dashboardForceRefresh('panel-1', 'check-applicants')` to force-reload the applicant list with updated status
+- Applicants with `intibak_complete` status show "Intibak Complete ✓" (non-clickable) instead of the "Open Intibak Table" button
+
+**Inline `<script>` execution**: Tab content is loaded via `innerHTML`. Browsers do not execute `<script>` tags inserted that way. `fetchTabContent` in `dashboard.js` re-executes them by replacing each `<script>` element with a newly created one (standard workaround).
+
+**`window.dashboardForceRefresh(panelId, slug)`**: exposed from within the `DOMContentLoaded` closure in `dashboard.js`. Clears `loaded[panelId]` then calls `activatePanel(panelId, slug)` — use this from inline panel scripts to force a re-fetch after a state-changing action.
 
 ### OIDB class methods (`classes/users/oidb.py`)
 

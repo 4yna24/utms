@@ -44,15 +44,16 @@ def register_commands(app) -> None:
         click.echo("Tables cleared.")
 
         # --- Staff & admin ---
+        # (email, password, role, department)
         staff_accounts = [
-            ("admin@admin", "admin", "admin"),
-            ("oidb@test",   "test",  "oidb"),
-            ("dean@test",   "test",  "dean"),
-            ("ygk@test",    "test",  "ygk"),
-            ("ydyo@test",   "test",  "ydyo"),
+            ("admin@admin", "admin", "admin", None),
+            ("oidb@test",   "test",  "oidb",  None),
+            ("dean@test",   "test",  "dean",  None),
+            ("ygk@test",    "test",  "ygk",   "computer_engineering"),
+            ("ydyo@test",   "test",  "ydyo",  None),
         ]
-        for email, pwd, role in staff_accounts:
-            u = UserORM(email=email, role=role)
+        for email, pwd, role, dept in staff_accounts:
+            u = UserORM(email=email, role=role, department=dept)
             u.set_password(pwd)
             db.session.add(u)
         db.session.flush()
@@ -83,25 +84,25 @@ def register_commands(app) -> None:
             # Submitted with low GPA — pre-populated checker errors
             ("applicant2@test",  "submitted",          "1.85", None,                                       None,                                                    None,                     None,   None,    "auto_checked",       _ERRORS_GPA_LOW),
             # Submitted with missing docs — pre-populated checker errors
-            ("applicant3@test",  "submitted",          "2.90", None,                                       None,                                                    None,                     None,   "68.50", "auto_checked",       _ERRORS_DOCS),
+            ("applicant3@test",  "submitted",          "2.90", None,                                       None,                                                    None,                     None,   "362.50", "auto_checked",       _ERRORS_DOCS),
             # Forwarded to YDYO — auto-checked, passed
-            ("applicant4@test",  "forwarded_to_ydyo",  "3.10", None,                                       None,                                                    None,                     None,   "72.00", "auto_checked",       "[]"),
+            ("applicant4@test",  "forwarded_to_ydyo",  "3.10", None,                                       None,                                                    None,                     None,   "418.00", "auto_checked",       "[]"),
             # Forwarded to YDYO — auto-checked, invalid ID + missing student cert
-            ("applicant5@test",  "forwarded_to_ydyo",  "3.45", None,                                       None,                                                    None,                     None,   "81.25", "auto_checked",       _ERRORS_ID_AND_DOC),
+            ("applicant5@test",  "forwarded_to_ydyo",  "3.45", None,                                       None,                                                    None,                     None,   "385.75", "auto_checked",       _ERRORS_ID_AND_DOC),
             # Forwarded to Dean — auto-checked OK; estimated GPA set
-            ("applicant6@test",  "forwarded_to_dean",  "3.70", None,                                       None,                                                    None,                     "3.55", "88.00", "auto_checked",       "[]"),
-            # Forwarded to YGK — full pipeline complete
-            ("applicant7@test",  "forwarded_to_ygk",   "3.85", None,                                       None,                                                    "Faculty of Engineering", "3.60", "90.50", "auto_checked",       "[]"),
+            ("applicant6@test",  "forwarded_to_dean",  "3.70", None,                                       None,                                                    None,                     "3.55", "452.00", "auto_checked",       "[]"),
+            # Forwarded to YGK — full pipeline complete (department key used so ygk@test can see it)
+            ("applicant7@test",  "forwarded_to_ygk",   "3.85", None,                                       None,                                                    "computer_engineering",   "3.60", "487.50", "auto_checked",       "[]"),
             # Returned by OIDB with notes — applicant must resubmit
             ("applicant8@test",  "returned",           "2.50", "Official transcript missing notary stamp.", None,                                                    None,                     None,   None,    "needs_manual_check", None),
             # Cancelled
             ("applicant9@test",  "cancelled",          "2.75", None,                                       None,                                                    None,                     None,   None,    "needs_manual_check", None),
             # Returned by Dean to applicant — dean_notes explain why
-            ("applicant10@test", "returned",           "3.05", None,                                       "Please provide a notarised copy of your diploma.",       None,                     None,   "75.00", "auto_checked",       "[]"),
+            ("applicant10@test", "returned",           "3.05", None,                                       "Please provide a notarised copy of your diploma.",       None,                     None,   "395.00", "auto_checked",       "[]"),
             # Returned by Dean to OIDB — re-enters OIDB queue as submitted; dean_notes shown in OIDB panel
-            ("applicant11@test", "submitted",          "3.30", None,                                       "Transcript verification required before forwarding.",    None,                     None,   "79.50", "auto_checked",       "[]"),
+            ("applicant11@test", "submitted",          "3.30", None,                                       "Transcript verification required before forwarding.",    None,                     None,   "428.50", "auto_checked",       "[]"),
             # Returned by Dean to YDYO — re-enters YDYO queue; dean_notes shown in YDYO panel
-            ("applicant12@test", "forwarded_to_ydyo",  "3.55", None,                                       "English proficiency document needs re-evaluation.",      None,                     None,   "83.00", "auto_checked",       "[]"),
+            ("applicant12@test", "forwarded_to_ydyo",  "3.55", None,                                       "English proficiency document needs re-evaluation.",      None,                     None,   "441.00", "auto_checked",       "[]"),
         ]
 
         for i, (email, status, gpa, oidb_notes, dean_notes, faculty, est_gpa, oysm, checker_status, checker_errors) in enumerate(scenarios):
@@ -136,7 +137,7 @@ def register_commands(app) -> None:
 
         db.session.commit()
         click.echo("Seed complete.")
-        click.echo("  Staff  : admin@admin/admin  oidb@test/test  dean@test/test  ygk@test/test  ydyo@test/test")
+        click.echo("  Staff  : admin@admin/admin  oidb@test/test  dean@test/test  ygk@test/test(dept:computer_engineering)  ydyo@test/test")
         click.echo("  Applicants: applicant1@test … applicant12@test  (password: test)")
         click.echo("  Scenarios:")
         click.echo("    applicant1:  submitted, needs_manual_check")

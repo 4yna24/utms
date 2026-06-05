@@ -115,6 +115,26 @@ class ApplicationRepository:
             )
 
     @staticmethod
+    def get_pending_for_ygk() -> OperationResult:
+        """Get applications forwarded to YGK, with documents and applicant eager-loaded."""
+        try:
+            apps = (
+                ApplicationORM.query.options(
+                    selectinload(ApplicationORM.documents),
+                    selectinload(ApplicationORM.applicant),
+                )
+                .filter(ApplicationORM.status.in_(["forwarded_to_ygk", "intibak_complete"]))
+                .order_by(ApplicationORM.created_at.desc())
+                .all()
+            )
+            return OperationResult.ok(data=apps)
+        except Exception as exc:
+            return OperationResult.error(
+                ErrorCode.DB_ERROR,
+                f"Failed to fetch YGK applications: {str(exc)}"
+            )
+
+    @staticmethod
     def get_pending_for_dean() -> OperationResult:
         """Get applications pending dean review."""
         try:

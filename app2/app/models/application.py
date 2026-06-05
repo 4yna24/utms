@@ -77,6 +77,9 @@ class ApplicationORM(db.Model):
         return 0 if self.parsed_checker_errors else 2
 
     applicant = db.relationship("UserORM", back_populates="application")
+    intibak_table = db.relationship(
+        "IntibakTableORM", back_populates="application", uselist=False
+    )
     documents = db.relationship(
         "ApplicationDocumentORM",
         back_populates="application",

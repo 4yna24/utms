@@ -24,18 +24,10 @@ class DeanOffice(User, IReviewer):
         app_repo = get_application_repository()
         return app_repo.update_status(application_id, status)
 
-    def forward_to_ygk(self, application_id: int, faculty: str) -> OperationResult:
-        """Forward application to YGK. Returns OperationResult."""
+    def forward_to_ygk(self, application_id: int) -> OperationResult:
+        """Forward application to YGK, auto-routing by target program."""
         app_repo = get_application_repository()
-
-        if not faculty or not faculty.strip():
-            return OperationResult.error(
-                ErrorCode.VALIDATION_FAILED,
-                "A faculty must be selected before forwarding."
-            )
-
         try:
-            # Get application
             result = app_repo.find_by_id(application_id)
             if not result.success:
                 return result
@@ -44,21 +36,17 @@ class DeanOffice(User, IReviewer):
                     ErrorCode.APPLICATION_NOT_FOUND,
                     f"Application {application_id} not found."
                 )
-
             app = result.data
             if app.status != "forwarded_to_dean":
                 return OperationResult.error(
                     ErrorCode.INVALID_STATUS_TRANSITION,
                     f"Cannot forward application in status '{app.status}'."
                 )
-
-            # Update application
-            app.forwarded_faculty = faculty
+            from ...curricula import get_department_for_program
+            dept = get_department_for_program(app.target_program or "") or (app.target_program or "")
+            app.forwarded_faculty = dept
             app.status = "forwarded_to_ygk"
-
-            # Commit via repository
-            commit_result = app_repo.update(app)
-            return commit_result
+            return app_repo.update(app)
         except Exception as exc:
             app_repo.rollback()
             return OperationResult.error(

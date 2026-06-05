@@ -121,12 +121,6 @@
                             {% if app.status == 'forwarded_to_dean' %}
                             <div class="action-col">
                                 <form method="POST" action="{{ url_for('dean_api.forward_to_ygk', application_id=app.id) }}" class="inline-form">
-                                    <select name="faculty" required>
-                                        <option value="">Select faculty…</option>
-                                        {% for faculty in available_faculties %}
-                                            <option value="{{ faculty }}">{{ faculty }}</option>
-                                        {% endfor %}
-                                    </select>
                                     <button type="submit" class="soft-btn">Forward to YGK</button>
                                 </form>
                                 <form method="POST" action="{{ url_for('dean_api.return_application', application_id=app.id) }}">

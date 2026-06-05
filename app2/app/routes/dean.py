@@ -5,7 +5,6 @@ from __future__ import annotations
 from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, session, url_for
 
 from ..classes import DeanOffice
-from ..config import AVAILABLE_FACULTIES
 from .common import role_required
 
 dean_api_bp = Blueprint("dean_api", __name__, url_prefix="/api/dean")
@@ -26,11 +25,7 @@ def check_applicants():
     """Show pending applicants."""
     service = _get_service()
     applications = service.get_pending_applicants()
-    return render_template(
-        "dean_check_applicants.html",
-        applications=applications,
-        available_faculties=AVAILABLE_FACULTIES,
-    )
+    return render_template("dean_check_applicants.html", applications=applications)
 
 
 _RETURN_TARGET_LABELS = {"applicant": "applicant", "oidb": "OIDB", "ydyo": "YDYO"}
@@ -57,17 +52,12 @@ def return_application(application_id):
 @dean_api_bp.route("/forward-to-ygk/<int:application_id>", methods=["POST"])
 @role_required("dean")
 def forward_to_ygk(application_id):
-    """Forward application to YGK."""
-    faculty = (request.form.get("faculty") or "").strip()
-    service = _get_service()
-    
-    result = service.forward_to_ygk(application_id, faculty)
-    
+    """Forward application to YGK (department auto-determined from target program)."""
+    result = _get_service().forward_to_ygk(application_id)
     if result.success:
         flash("Application forwarded to YGK successfully.", "success")
     else:
         flash(result.error_msg, "error")
-    
     return redirect(url_for("dashboard.index", tab="receive-forward-applications"))
 
 

@@ -2,61 +2,154 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
+import io
+
+from flask import Blueprint, abort, jsonify, request, send_file, session
 
 from ..classes import YGK
-from ..database import get_application_repository
+from ..classes.intibak_exporter import IntibakExporter
+from ..database import get_intibak_repository
+from ..models import ApplicationORM
 from .common import role_required
 
 ygk_api_bp = Blueprint("ygk_api", __name__, url_prefix="/api/ygk")
 
 
 def _get_service() -> YGK:
-    """Get YGK instance for current user."""
     return YGK(
         user_id=session.get("user_id", 0),
         email=session.get("user_email", ""),
-        role="ygk"
+        role="ygk",
     )
 
 
-@ygk_api_bp.route("/check-applicants", methods=["GET"])
+# ── Intibak AJAX endpoints ──
+
+@ygk_api_bp.route("/intibak/<int:app_id>/add-course", methods=["POST"])
 @role_required("ygk")
-def check_applicants():
-    """Show applications to check."""
-    app_repo = get_application_repository()
-    result = app_repo.get_by_status("forwarded_to_ygk")
-    
-    applications = result.data if result.success else []
-    
-    return render_template("ygk_check_applicants.html", applications=applications)
+def add_course(app_id: int):
+    data = request.get_json(silent=True) or {}
+    side = data.get("side", "").strip()
+    course_data = {
+        "course_name": (data.get("course_name") or "").strip(),
+        "course_code": (data.get("course_code") or "").strip(),
+        "credits": (data.get("credits") or "").strip(),
+        "akts": (data.get("akts") or "").strip(),
+        "grade": (data.get("grade") or "").strip(),
+    }
+    if not course_data["course_name"]:
+        return jsonify({"success": False, "error": "Course name is required."}), 400
 
-
-@ygk_api_bp.route("/intibak-table", methods=["GET"])
-@role_required("ygk")
-def intibak_table():
-    """View Intibak table."""
-    return jsonify(
-        {
-            "tab": "Intibak Table",
-            "view_mode": "placeholder",
-            "edit_mode": "placeholder",
-            "status": "Phase 1 shell",
-        }
-    )
-
-
-@ygk_api_bp.route("/approve/<int:application_id>", methods=["POST"])
-@role_required("ygk")
-def approve_application(application_id):
-    """Approve application."""
-    service = _get_service()
-    
-    result = service.update_applicant_status(application_id, "approved")
-    
+    result = _get_service().add_course(app_id, side, course_data)
     if result.success:
-        flash("Application approved successfully.", "success")
-        return redirect(url_for("ygk_api.check_applicants"))
-    else:
-        flash(result.error_msg, "error")
-        return redirect(url_for("ygk_api.check_applicants"))
+        return jsonify({"success": True, "course": result.data.to_dict()})
+    return jsonify({"success": False, "error": result.error_msg}), 400
+
+
+@ygk_api_bp.route("/intibak/course/<int:course_id>", methods=["DELETE"])
+@role_required("ygk")
+def delete_course(course_id: int):
+    result = _get_service().delete_course(course_id)
+    if result.success:
+        return jsonify({"success": True})
+    return jsonify({"success": False, "error": result.error_msg}), 400
+
+
+@ygk_api_bp.route("/intibak/course/<int:course_id>", methods=["PATCH"])
+@role_required("ygk")
+def update_course(course_id: int):
+    data = request.get_json(silent=True) or {}
+    grade = (data.get("grade") or "").strip()
+    result = _get_service().update_course_grade(course_id, grade)
+    if result.success:
+        return jsonify({"success": True, "course": result.data.to_dict()})
+    return jsonify({"success": False, "error": result.error_msg}), 400
+
+
+_OYSM_MIN, _OYSM_MAX = 100.0, 560.0
+
+
+def _calc_ranking_score(gpa: float, app_obj) -> float | None:
+    """Composite ranking score 0–100: 50% GPA (normalised) + 50% OYSM (normalised 100–560).
+    Falls back to GPA-only (scaled to 0–100) when OYSM is absent."""
+    try:
+        gpa_comp = (gpa / 4.0) * 50.0
+        oysm_raw = float(app_obj.oysm_points) if app_obj and app_obj.oysm_points else None
+        if oysm_raw is not None:
+            clamped   = max(_OYSM_MIN, min(_OYSM_MAX, oysm_raw))
+            oysm_comp = ((clamped - _OYSM_MIN) / (_OYSM_MAX - _OYSM_MIN)) * 50.0
+            return round(gpa_comp + oysm_comp, 4)
+        return round(gpa_comp * 2, 4)
+    except (TypeError, ValueError):
+        return None
+
+
+@ygk_api_bp.route("/intibak/<int:app_id>/save-gpa", methods=["PATCH"])
+@role_required("ygk")
+def save_gpa(app_id: int):
+    data = request.get_json(silent=True) or {}
+    try:
+        gpa = float(data.get("estimated_gpa", 0))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Invalid GPA value."}), 400
+    app_obj = ApplicationORM.query.get(app_id)
+    ranking_score = _calc_ranking_score(gpa, app_obj)
+    result = _get_service().save_estimated_gpa(app_id, gpa, ranking_score)
+    if result.success:
+        return jsonify({
+            "success": True,
+            "estimated_gpa": round(gpa, 4),
+            "ranking_score": ranking_score,
+        })
+    return jsonify({"success": False, "error": result.error_msg}), 400
+
+
+@ygk_api_bp.route("/intibak/<int:app_id>/export-json", methods=["GET"])
+@role_required("ygk")
+def export_json(app_id: int):
+    app_obj = ApplicationORM.query.get(app_id)
+    if not app_obj:
+        abort(404)
+    intibak_repo = get_intibak_repository()
+    table_result = intibak_repo.get_or_create_table(app_id)
+    if not table_result.success:
+        abort(500)
+    exporter = IntibakExporter(table_result.data, app_obj)
+    json_bytes = exporter.to_json().encode("utf-8")
+    filename = f"intibak_{app_id}_{app_obj.full_name.replace(' ', '_')}.json"
+    return send_file(
+        io.BytesIO(json_bytes),
+        mimetype="application/json",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+@ygk_api_bp.route("/intibak/<int:app_id>/send-to-oidb", methods=["POST"])
+@role_required("ygk")
+def send_to_oidb(app_id: int):
+    data = request.get_json(silent=True) or {}
+    try:
+        gpa = float(data.get("estimated_gpa", 0))
+    except (TypeError, ValueError):
+        gpa = 0.0
+    app_obj = ApplicationORM.query.get(app_id)
+    if not app_obj:
+        return jsonify({"success": False, "error": "Application not found."}), 404
+    ranking_score = _calc_ranking_score(gpa, app_obj)
+    result = _get_service().approve_for_oidb(app_id, gpa, ranking_score)
+    if result.success:
+        return jsonify({"success": True, "ranking_score": ranking_score})
+    return jsonify({"success": False, "error": result.error_msg}), 400
+
+
+# ── Document viewer (transcript) ──
+
+@ygk_api_bp.route("/view-document/<int:doc_id>", methods=["GET"])
+@role_required("ygk")
+def view_document(doc_id: int):
+    result = _get_service().get_document(doc_id)
+    if not result.success or not result.data:
+        abort(404)
+    doc = result.data
+    return send_file(doc.file_path, mimetype="application/pdf", as_attachment=False)

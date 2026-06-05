@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function fetchTabContent(panel, slug, page, filterState) {
+    function fetchTabContent(panel, slug, page, filterState, extraParams) {
         const state = filterState || {};
         const filter = state.filter || 'all';
         const sortCol = (state.sortCol !== undefined && state.sortCol !== null) ? state.sortCol : null;
@@ -62,6 +62,11 @@ document.addEventListener('DOMContentLoaded', () => {
         let url = `/dashboard/tab/${slug}?page=${page}`;
         if (filter !== 'all') url += `&filter=${encodeURIComponent(filter)}`;
         if (sortCol !== null) url += `&sort_col=${sortCol}&sort_dir=${sortDir}`;
+        if (extraParams) {
+            for (const [k, v] of Object.entries(extraParams)) {
+                if (v !== null && v !== undefined) url += `&${encodeURIComponent(k)}=${encodeURIComponent(v)}`;
+            }
+        }
 
         // Re-fetch (filter/sort/page): dim existing content, don't wipe it
         const isRefetch = !!panel.querySelector('.tab-content-wrap');
@@ -80,6 +85,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 panel.classList.remove('panel-fetching');
                 panel.innerHTML = `<div class="tab-content-wrap">${html}</div>`;
                 loaded[panel.id] = true;
+                // Re-execute any <script> blocks in fetched HTML — innerHTML doesn't run them
+                panel.querySelectorAll('script').forEach(old => {
+                    const s = document.createElement('script');
+                    Array.from(old.attributes).forEach(a => s.setAttribute(a.name, a.value));
+                    s.textContent = old.textContent;
+                    old.parentNode.replaceChild(s, old);
+                });
                 pushUrl(slug, page);
                 initPanelInteractions(panel, slug);
             })
@@ -273,11 +285,32 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Tab-jump buttons inside lazy-loaded content (e.g. applicant track → submit)
+        // Supports optional data-extra-params='{"key": value}' for parameterised tabs
         panel.querySelectorAll('.tab-jump').forEach(b => {
             b.addEventListener('click', () => {
+                const targetId = b.dataset.target;
                 const slug = b.dataset.tabSlug ||
-                    document.getElementById(b.dataset.target)?.dataset.tabSlug || '';
-                activatePanel(b.dataset.target, slug);
+                    document.getElementById(targetId)?.dataset.tabSlug || '';
+                let extra = {};
+                if (b.dataset.extraParams) {
+                    try { extra = JSON.parse(b.dataset.extraParams); } catch(e) {}
+                }
+                if (Object.keys(extra).length > 0) {
+                    // Force fresh fetch with extra params even if the tab was already loaded
+                    panels.forEach(p => p.classList.toggle('active', p.id === targetId));
+                    tabButtons.forEach(tb => {
+                        const isActive = tb.dataset.target === targetId;
+                        tb.classList.toggle('active', isActive);
+                        tb.setAttribute('aria-pressed', String(isActive));
+                    });
+                    const targetPanel = document.getElementById(targetId);
+                    if (targetPanel) {
+                        loaded[targetId] = false;
+                        fetchTabContent(targetPanel, slug, 1, null, extra);
+                    }
+                } else {
+                    activatePanel(targetId, slug);
+                }
             });
         });
 
@@ -505,6 +538,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('#panel-main .tab-jump').forEach(b => {
         b.addEventListener('click', () => activatePanel(b.dataset.target, b.dataset.tabSlug));
     });
+
+    // Expose force-refresh so inline panel scripts can invalidate a tab after a state change
+    window.dashboardForceRefresh = function(targetId, slug) {
+        loaded[targetId] = false;
+        activatePanel(targetId, slug);
+    };
 
     // H1 title → back to main
     const dashTitle = document.getElementById('dash-title');

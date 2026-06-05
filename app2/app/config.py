@@ -51,6 +51,7 @@ APPLICATION_STATUS_STEP = {
     "forwarded_to_ydyo": 1,
     "forwarded_to_dean": 2,
     "forwarded_to_ygk": 3,
+    "intibak_complete": 4,
     "returned": 0,       # fallback; template overrides from notes
     "cancelled": -1,
 }
@@ -97,15 +98,15 @@ PHASE1_TABS = {
     "ygk": [
         {
             "title": "Check Applicants",
-            "description": "Applicant list for evaluation.",
-            "endpoint": "ygk_api.check_applicants",
-            "partial": None,
+            "description": "Review applications forwarded to your department.",
+            "endpoint": "ygk_api.view_document",
+            "partial": "partials/panel_ygk_applicants.html",
         },
         {
             "title": "Intibak Table",
-            "description": "View and edit intibak rows.",
-            "endpoint": "ygk_api.intibak_table",
-            "partial": None,
+            "description": "Build course equivalency table for a selected applicant.",
+            "endpoint": "ygk_api.view_document",
+            "partial": "partials/panel_ygk_intibak.html",
         },
     ],
     "ydyo": [

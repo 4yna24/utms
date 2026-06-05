@@ -2,6 +2,7 @@ from flask import current_app
 
 from .adapters import SQLAlchemyDatabaseAdapter, SQLAlchemyUserDataService
 from .application_repository import ApplicationRepository
+from .intibak_repository import IntibakRepository
 
 
 def init_database_interfaces(app):
@@ -29,4 +30,9 @@ def get_application_repository():
 def get_user_repository():
     """Get user data service (user management operations)."""
     return current_app.extensions['user_data_interface']
+
+
+def get_intibak_repository():
+    """Get the intibak repository (course equivalency operations)."""
+    return IntibakRepository
 
