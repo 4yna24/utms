@@ -330,7 +330,7 @@ Slugs are computed from tab titles by `_slugify()` in `dashboard.py`:
 
 4. **Action routes** that POST and redirect: use `url_for("dashboard.index", tab="<slug>")` so the user lands back on the correct tab after an action.
 
-`dashboard.html` does not need to change; it renders empty panels and the JS handles the rest.
+`dashboard.html` holds the `#dashboard-confirm-modal` div (at the top of `{% block content %}`, before `.window-shell`) and otherwise does not need to change for new tabs.
 
 ### Error handling
 
@@ -519,8 +519,7 @@ All interactive behavior for the dashboard lives here:
 - **Chip filters** — any `.stats-row[data-filter-table="<id>"]` auto-wires its `[data-filter]` chips to filter the named table by `data-status` on header rows
 - **Column sort** — any `<table id="...">` with `<th data-sort="N">` gets clickable sort (row-pairs kept together during sort so expand rows stay linked)
 - **Expand rows** — `.expand-btn` opens/closes `.app-row-expand` with animated slide; only one open at a time
-- **Search bar** — `.panel-search-input` inside a panel with `.panel-tab-state` triggers a server-side re-fetch after 300 ms of inactivity; the `search` value travels in the query param and is preserved in `data-search` on the state element across re-fetches
-- **Confirm modal** — any button with `data-modal-trigger` shows a `.confirm-modal` overlay. The button must also have `data-modal-msg="…"` (message text) and `data-form="<form-id>"` (which form to submit on confirm). The modal is expected to live inside the same panel partial. Clicking Cancel, Confirm, or the overlay closes it.
+- **Confirm modal** — any button with `data-modal-trigger` shows `#dashboard-confirm-modal`. The button must also have `data-modal-msg="…"` (message text) and `data-form="<form-id>"` (which form to submit on confirm). Clicking Cancel, Confirm, or the overlay closes it. Close buttons are wired only once via `modal._wired` guard so re-fetching the panel doesn't stack duplicate listeners.
 
 ### Re-fetch (filter / sort / page)
 
