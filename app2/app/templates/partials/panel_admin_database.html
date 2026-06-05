@@ -37,6 +37,19 @@
         <button type="submit">Create Backup Now</button>
     </form>
 
+    {# ── Danger zone ── #}
+    <h2 style="margin-top:2rem; color:#c0392b;">Danger Zone</h2>
+    <p style="color:#888; margin-bottom:0.75rem;">
+        Wipes <strong>all</strong> users, applications, and intibak data, then reloads synthetic seed data.
+        Documents in the uploads folder are <em>not</em> removed.
+    </p>
+    <form method="POST" action="{{ url_for('admin_api.reset_and_seed') }}"
+          onsubmit="return confirm('WARNING: This will permanently delete ALL data and reload seed data. This cannot be undone.\n\nType RESET to confirm.') && prompt('Type RESET to confirm:') === 'RESET';">
+        <button type="submit" style="background:#c0392b; color:#fff; border-color:#922b21;">
+            Reset &amp; Reseed Database
+        </button>
+    </form>
+
     {% if admin_backups %}
     <table id="admin-backups-table">
         <thead>

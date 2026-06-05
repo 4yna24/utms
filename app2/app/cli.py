@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-
 import click
 
 
@@ -32,123 +30,349 @@ def register_commands(app) -> None:
     @click.confirmation_option(prompt="This wipes ALL data and reseeds. Continue?")
     def seed_db() -> None:
         """Wipe the database and load synthetic test data."""
-        import json as _json
         from . import db
-        from .models import ApplicationDocumentORM, ApplicationORM, UserORM
+        from .models import (
+            ApplicationDocumentORM, ApplicationORM, UserORM,
+            IntibakTableORM, IntibakCourseORM,
+        )
+        seed_all(db, ApplicationDocumentORM, ApplicationORM, UserORM, IntibakTableORM, IntibakCourseORM)
+        click.echo("Seed complete. All accounts use password 'test' except admin (password 'admin').")
 
-        # Wipe in FK-safe order
-        db.session.query(ApplicationDocumentORM).delete()
-        db.session.query(ApplicationORM).delete()
-        db.session.query(UserORM).delete()
-        db.session.commit()
-        click.echo("Tables cleared.")
 
-        # --- Staff & admin ---
-        # (email, password, role, department)
-        staff_accounts = [
-            ("admin@admin", "admin", "admin", None),
-            ("oidb@test",   "test",  "oidb",  None),
-            ("dean@test",   "test",  "dean",  None),
-            ("ygk@test",    "test",  "ygk",   "computer_engineering"),
-            ("ydyo@test",   "test",  "ydyo",  None),
-        ]
-        for email, pwd, role, dept in staff_accounts:
-            u = UserORM(email=email, role=role, department=dept)
-            u.set_password(pwd)
-            db.session.add(u)
+def seed_all(db, ApplicationDocumentORM, ApplicationORM, UserORM, IntibakTableORM, IntibakCourseORM):
+    """Wipe all tables and insert synthetic data. Callable from CLI and admin route."""
+    import json as _json
+    from datetime import datetime, timedelta
+
+    # Wipe in FK-safe order
+    db.session.query(IntibakCourseORM).delete()
+    db.session.query(IntibakTableORM).delete()
+    db.session.query(ApplicationDocumentORM).delete()
+    db.session.query(ApplicationORM).delete()
+    db.session.query(UserORM).delete()
+    db.session.commit()
+
+    # ── Staff accounts ──────────────────────────────────────────────────────
+    staff = [
+        ("admin@admin",  "admin", "admin", None),
+        ("oidb@test",    "test",  "oidb",  None),
+        ("dean@test",    "test",  "dean",  None),
+        ("ydyo@test",    "test",  "ydyo",  None),
+        # Two YGK users for different departments
+        ("ygk.ceng@test", "test", "ygk",  "computer_engineering"),
+        ("ygk.elec@test", "test", "ygk",  "electrical_electronics_engineering"),
+    ]
+    for email, pwd, role, dept in staff:
+        u = UserORM(email=email, role=role, department=dept)
+        u.set_password(pwd)
+        db.session.add(u)
+    db.session.flush()
+
+    # ── Checker error payloads ───────────────────────────────────────────────
+    _ERR_GPA_LOW = _json.dumps([
+        {"type": "field", "field": "current_gpa",
+         "reason": "GPA 1.80 is below the minimum required 2.00.", "slot": None},
+    ])
+    _ERR_DOCS = _json.dumps([
+        {"type": "document", "slot": 2, "reason": "Transcript is missing.", "field": None},
+        {"type": "document", "slot": 3, "reason": "YKS Score Report is missing.", "field": None},
+    ])
+    _ERR_ID_DOC = _json.dumps([
+        {"type": "field",    "field": "id_number",
+         "reason": "ID number must contain only digits.", "slot": None},
+        {"type": "document", "slot": 1, "reason": "Student Certificate is missing.", "field": None},
+    ])
+    _ERR_ENG_DOC = _json.dumps([
+        {"type": "document", "slot": 4,
+         "reason": "English proficiency certificate is missing.", "field": None},
+    ])
+    _OK = "[]"
+
+    _UNIS = [
+        "Boğaziçi University",
+        "Middle East Technical University",
+        "Hacettepe University",
+        "Ankara University",
+        "Ege University",
+        "Istanbul Technical University",
+        "Koç University",
+        "Sabancı University",
+        "Bilkent University",
+        "Yıldız Technical University",
+    ]
+
+    # (full_name, email, status, program, faculty_dept_key,
+    #  gpa, oysm, checker_status, checker_errors,
+    #  oidb_notes, dean_notes, prep_school_status, enrolled, uni_idx)
+    scenarios = [
+        # ── Submitted — not yet auto-checked ────────────────────────────────
+        ("Emre Yıldız",        "emre.yildiz@test",       "submitted",
+         "Computer Engineering",             None,
+         "3.20", None,      "needs_manual_check", None,          None, None, None, True,  0),
+
+        ("Selin Kaya",         "selin.kaya@test",        "submitted",
+         "Electrical-Electronics Engineering", None,
+         "3.55", "430.00",  "needs_manual_check", None,          None, None, None, True,  1),
+
+        # ── Submitted — auto-checked with errors ─────────────────────────────
+        ("Burak Demir",        "burak.demir@test",       "submitted",
+         "Software Engineering",             None,
+         "1.80", "310.00",  "auto_checked",       _ERR_GPA_LOW,  None, None, None, True,  2),
+
+        ("Fatma Arslan",       "fatma.arslan@test",      "submitted",
+         "Computer Engineering",             None,
+         "2.90", None,      "auto_checked",       _ERR_DOCS,     None, None, None, False, 3),
+
+        ("Mert Çelik",         "mert.celik@test",        "submitted",
+         "Mechanical Engineering",           None,
+         "3.10", "395.00",  "auto_checked",       _ERR_ID_DOC,   None, None, None, True,  4),
+
+        # ── Submitted — auto-checked OK ──────────────────────────────────────
+        ("Ayşe Şahin",         "ayse.sahin@test",        "submitted",
+         "Computer Engineering",             None,
+         "3.40", "420.00",  "auto_checked",       _OK,           None, None, None, True,  5),
+
+        # ── Forwarded to YDYO ───────────────────────────────────────────────
+        ("Hakan Öztürk",       "hakan.ozturk@test",      "forwarded_to_ydyo",
+         "Software Engineering",             None,
+         "3.60", "455.00",  "auto_checked",       _OK,           None, None, None, True,  6),
+
+        ("Zeynep Aydın",       "zeynep.aydin@test",      "forwarded_to_ydyo",
+         "Computer Engineering",             None,
+         "2.95", "360.00",  "auto_checked",       _ERR_ENG_DOC,  None, None, None, True,  7),
+
+        ("Onur Koç",           "onur.koc@test",          "forwarded_to_ydyo",
+         "Electrical-Electronics Engineering", None,
+         "3.75", "470.00",  "auto_checked",       _OK,           None, None, None, False, 8),
+
+        # ── Forwarded to Dean ───────────────────────────────────────────────
+        ("Merve Doğan",        "merve.dogan@test",       "forwarded_to_dean",
+         "Computer Engineering",             None,
+         "3.80", "488.00",  "auto_checked",       _OK,           None, None, "eligible", True, 9),
+
+        ("Tolga Polat",        "tolga.polat@test",       "forwarded_to_dean",
+         "Software Engineering",             None,
+         "3.25", "410.00",  "auto_checked",       _OK,           None, None, "needs_test", True, 0),
+
+        # ── Forwarded to YGK — Computer Engineering ──────────────────────────
+        ("İrem Güneş",         "irem.gunes@test",        "forwarded_to_ygk",
+         "Computer Engineering",             "computer_engineering",
+         "3.90", "495.00",  "auto_checked",       _OK,           None, None, "eligible", True,  1),
+
+        ("Berkay Erdoğan",     "berkay.erdogan@test",    "forwarded_to_ygk",
+         "Software Engineering",             "computer_engineering",
+         "3.50", "445.00",  "auto_checked",       _OK,           None, None, "eligible", True,  2),
+
+        ("Naz Yılmaz",         "naz.yilmaz@test",        "forwarded_to_ygk",
+         "Computer Engineering",             "computer_engineering",
+         "3.65", "460.00",  "auto_checked",       _OK,           None, None, "needs_test", False, 3),
+
+        # ── Intibak complete — full pipeline ─────────────────────────────────
+        ("Alper Tan",          "alper.tan@test",         "intibak_complete",
+         "Computer Engineering",             "computer_engineering",
+         "3.70", "472.00",  "auto_checked",       _OK,           None, None, "eligible", True,  4),
+
+        ("Ceren Özdemir",      "ceren.ozdemir@test",     "intibak_complete",
+         "Software Engineering",             "computer_engineering",
+         "3.85", "491.00",  "auto_checked",       _OK,           None, None, "eligible", True,  5),
+
+        ("Yusuf Aktaş",        "yusuf.aktas@test",       "intibak_complete",
+         "Computer Engineering",             "computer_engineering",
+         "3.45", "438.00",  "auto_checked",       _OK,           None, None, "needs_test", True, 6),
+
+        ("Gizem Sarı",         "gizem.sari@test",        "intibak_complete",
+         "Computer Engineering",             "computer_engineering",
+         "4.00", "510.00",  "auto_checked",       _OK,           None, None, "eligible", True,  7),
+
+        # ── Returned by OIDB ─────────────────────────────────────────────────
+        ("Kaan Acar",          "kaan.acar@test",         "returned",
+         "Computer Engineering",             None,
+         "2.50", None,      "needs_manual_check", None,
+         "Official transcript is missing the notary stamp.",
+         None, None, True, 8),
+
+        ("Eda Bozkurt",        "eda.bozkurt@test",       "returned",
+         "Mechanical Engineering",           None,
+         "3.05", "388.00",  "auto_checked",       _OK,
+         "Student certificate must be issued within the last 6 months.",
+         None, None, False, 9),
+
+        # ── Returned by Dean to applicant ────────────────────────────────────
+        ("Serkan Yurt",        "serkan.yurt@test",       "returned",
+         "Software Engineering",             None,
+         "3.30", "415.00",  "auto_checked",       _OK,
+         None,
+         "Please provide a notarised copy of your diploma from a sworn translator.",
+         None, True, 0),
+
+        # ── Returned by Dean to OIDB (re-entered as submitted) ───────────────
+        ("Dilara Kurt",        "dilara.kurt@test",       "submitted",
+         "Computer Engineering",             None,
+         "3.15", "402.00",  "auto_checked",       _OK,
+         None,
+         "Transcript verification required — please re-check before forwarding.",
+         None, True, 1),
+
+        # ── Returned by Dean to YDYO (re-entered as forwarded_to_ydyo) ───────
+        ("Kerem Çakır",        "kerem.cakir@test",       "forwarded_to_ydyo",
+         "Electrical-Electronics Engineering", None,
+         "3.48", "442.00",  "auto_checked",       _OK,
+         None,
+         "English proficiency document needs re-evaluation by YDYO.",
+         None, True, 2),
+
+        # ── Cancelled ───────────────────────────────────────────────────────
+        ("Pınar Güler",        "pinar.guler@test",       "cancelled",
+         "Architecture",                     None,
+         "2.75", None,      "needs_manual_check", None,          None, None, None, True,  3),
+    ]
+
+    base_date = datetime.utcnow() - timedelta(days=len(scenarios))
+    app_objects = {}  # email → ApplicationORM (for building intibak tables later)
+
+    for idx, row in enumerate(scenarios):
+        (full_name, email, status, program, faculty_key,
+         gpa, oysm, checker_status, checker_errors,
+         oidb_notes, dean_notes, prep_status, enrolled, uni_idx) = row
+
+        u = UserORM(email=email, role="applicant")
+        u.set_password("test")
+        db.session.add(u)
         db.session.flush()
 
-        _PROGRAMS     = ["Computer Engineering", "Software Engineering", "Electrical and Electronics Engineering"]
-        _SEMESTERS    = ["2025–2026 / Fall", "2025–2026 / Spring"]
-        _UNIVERSITIES = ["Bosphorus University", "METU", "Ankara University", "Hacettepe University"]
+        id_num = f"1234{idx:05d}" if "INVALID" not in email else "TC-INVALID-XYZ"
+        app_obj = ApplicationORM(
+            applicant_id=u.id,
+            full_name=full_name,
+            id_number=id_num,
+            student_number=id_num,
+            source_university=_UNIS[uni_idx % len(_UNIS)],
+            is_currently_enrolled=enrolled,
+            target_program=program,
+            target_department=program,
+            target_semester="2026–2027 / Fall",
+            current_gpa=gpa,
+            oysm_points=oysm,
+            status=status,
+            oidb_notes=oidb_notes,
+            dean_notes=dean_notes,
+            forwarded_faculty=faculty_key,
+            prep_school_status=prep_status,
+            doc_checker_status=checker_status,
+            doc_checker_errors=checker_errors,
+            created_at=base_date + timedelta(days=idx),
+        )
+        db.session.add(app_obj)
+        db.session.flush()
+        app_objects[email] = app_obj
 
-        # Pre-built checker error payloads for mock "already auto-checked" applicants
-        _ERRORS_GPA_LOW = _json.dumps([
-            {"type": "field", "field": "current_gpa", "reason": "GPA 1.85 is below the minimum required 2.00.", "slot": None},
-        ])
-        _ERRORS_DOCS = _json.dumps([
-            {"type": "document", "slot": 2, "reason": "Transcript is missing.", "field": None},
-            {"type": "document", "slot": 3, "reason": "YKS Score Report is missing.", "field": None},
-        ])
-        _ERRORS_ID_AND_DOC = _json.dumps([
-            {"type": "field", "field": "id_number", "reason": "ID number must contain only digits.", "slot": None},
-            {"type": "document", "slot": 1, "reason": "Student Certificate is missing.", "field": None},
-        ])
+    db.session.commit()
 
-        # Schema:
-        # (email, status, current_gpa, oidb_notes, dean_notes, forwarded_faculty,
-        #  estimated_gpa, oysm_points, doc_checker_status, doc_checker_errors)
-        scenarios = [
-            # Freshly submitted — not yet auto-checked
-            ("applicant1@test",  "submitted",          "3.20", None,                                       None,                                                    None,                     None,   None,    "needs_manual_check", None),
-            # Submitted with low GPA — pre-populated checker errors
-            ("applicant2@test",  "submitted",          "1.85", None,                                       None,                                                    None,                     None,   None,    "auto_checked",       _ERRORS_GPA_LOW),
-            # Submitted with missing docs — pre-populated checker errors
-            ("applicant3@test",  "submitted",          "2.90", None,                                       None,                                                    None,                     None,   "362.50", "auto_checked",       _ERRORS_DOCS),
-            # Forwarded to YDYO — auto-checked, passed
-            ("applicant4@test",  "forwarded_to_ydyo",  "3.10", None,                                       None,                                                    None,                     None,   "418.00", "auto_checked",       "[]"),
-            # Forwarded to YDYO — auto-checked, invalid ID + missing student cert
-            ("applicant5@test",  "forwarded_to_ydyo",  "3.45", None,                                       None,                                                    None,                     None,   "385.75", "auto_checked",       _ERRORS_ID_AND_DOC),
-            # Forwarded to Dean — auto-checked OK; estimated GPA set
-            ("applicant6@test",  "forwarded_to_dean",  "3.70", None,                                       None,                                                    None,                     "3.55", "452.00", "auto_checked",       "[]"),
-            # Forwarded to YGK — full pipeline complete (department key used so ygk@test can see it)
-            ("applicant7@test",  "forwarded_to_ygk",   "3.85", None,                                       None,                                                    "computer_engineering",   "3.60", "487.50", "auto_checked",       "[]"),
-            # Returned by OIDB with notes — applicant must resubmit
-            ("applicant8@test",  "returned",           "2.50", "Official transcript missing notary stamp.", None,                                                    None,                     None,   None,    "needs_manual_check", None),
-            # Cancelled
-            ("applicant9@test",  "cancelled",          "2.75", None,                                       None,                                                    None,                     None,   None,    "needs_manual_check", None),
-            # Returned by Dean to applicant — dean_notes explain why
-            ("applicant10@test", "returned",           "3.05", None,                                       "Please provide a notarised copy of your diploma.",       None,                     None,   "395.00", "auto_checked",       "[]"),
-            # Returned by Dean to OIDB — re-enters OIDB queue as submitted; dean_notes shown in OIDB panel
-            ("applicant11@test", "submitted",          "3.30", None,                                       "Transcript verification required before forwarding.",    None,                     None,   "428.50", "auto_checked",       "[]"),
-            # Returned by Dean to YDYO — re-enters YDYO queue; dean_notes shown in YDYO panel
-            ("applicant12@test", "forwarded_to_ydyo",  "3.55", None,                                       "English proficiency document needs re-evaluation.",      None,                     None,   "441.00", "auto_checked",       "[]"),
-        ]
+    # ── Intibak tables for intibak_complete applicants ──────────────────────
+    # Courses are realistic CE curriculum rows; ranking_score computed from formula:
+    # score = (oysm / 560) * 90 + (gpa / 4.0) * 10
+    intibak_scenarios = {
+        "alper.tan@test": {
+            "estimated_gpa": 3.55,
+            "courses": [
+                # (side, code, name, credits, akts, grade)
+                ("left",  "BLM201", "Data Structures",           "4", "6",  "BA"),
+                ("left",  "BLM301", "Algorithms",                "3", "5",  "BB"),
+                ("left",  "MAT101", "Calculus I",                "4", "6",  "AA"),
+                ("left",  "MAT102", "Calculus II",               "4", "6",  "CB"),
+                ("left",  "FZK101", "Physics I",                 "4", "6",  "BB"),
+                ("right", "CENG201", "Data Structures",          "4", "6",  None),
+                ("right", "MATH101", "Calculus I",               "4", "6",  None),
+                ("right", "PHYS101", "Physics I",                "4", "6",  None),
+                ("taken", "CENG102", "Programming Languages I",  "4", "6",  None),
+                ("taken", "CENG202", "Discrete Mathematics",     "3", "5",  None),
+            ],
+        },
+        "ceren.ozdemir@test": {
+            "estimated_gpa": 3.70,
+            "courses": [
+                ("left",  "CS201",  "Introduction to Programming","3", "5",  "AA"),
+                ("left",  "CS301",  "Object-Oriented Programming","3", "5",  "BA"),
+                ("left",  "CS401",  "Database Systems",           "3", "5",  "BB"),
+                ("left",  "MTH201", "Discrete Mathematics",       "3", "5",  "AA"),
+                ("left",  "ENG205", "Signals & Systems",          "3", "5",  "CB"),
+                ("right", "CENG204", "Object-Oriented Programming","4", "6", None),
+                ("right", "CENG202", "Discrete Mathematics",      "3", "5",  None),
+                ("right", "MATH101", "Calculus I",                "4", "6",  None),
+                ("taken", "CENG201", "Data Structures",           "4", "6",  None),
+                ("taken", "CENG103", "Programming Languages II",  "4", "6",  None),
+                ("taken", "PHYS101", "Physics I",                 "4", "6",  None),
+            ],
+        },
+        "yusuf.aktas@test": {
+            "estimated_gpa": 3.20,
+            "courses": [
+                ("left",  "BLG201", "Data Structures & Algorithms","4","6",  "CB"),
+                ("left",  "BLG101", "Introduction to Programming", "3","5",  "BB"),
+                ("left",  "MTH101", "Calculus I",                  "4","6",  "BB"),
+                ("right", "CENG201", "Data Structures",            "4","6",  None),
+                ("right", "MATH101", "Calculus I",                 "4","6",  None),
+                ("taken", "CENG102", "Programming Languages I",    "4","6",  None),
+                ("taken", "CENG103", "Programming Languages II",   "4","6",  None),
+                ("taken", "CENG202", "Discrete Mathematics",       "3","5",  None),
+                ("taken", "CENG203", "Digital Logic Design",       "4","6",  None),
+            ],
+        },
+        "gizem.sari@test": {
+            "estimated_gpa": 3.90,
+            "courses": [
+                ("left",  "BLM101", "Intro to Computer Engineering","3","5", "AA"),
+                ("left",  "BLM102", "Programming I",               "4","6",  "AA"),
+                ("left",  "BLM201", "Data Structures",             "4","6",  "AA"),
+                ("left",  "BLM202", "Discrete Math",               "3","5",  "AA"),
+                ("left",  "MAT101", "Calculus I",                  "4","6",  "AA"),
+                ("left",  "MAT102", "Calculus II",                 "4","6",  "AA"),
+                ("left",  "FZK101", "Physics I",                   "4","6",  "BA"),
+                ("right", "CENG101", "Introduction to Computer Engineering","3","5",None),
+                ("right", "CENG102", "Programming Languages I",    "4","6",  None),
+                ("right", "CENG201", "Data Structures",            "4","6",  None),
+                ("right", "CENG202", "Discrete Mathematics",       "3","5",  None),
+                ("right", "MATH101", "Calculus I",                 "4","6",  None),
+                ("right", "MATH102", "Calculus II",                "4","6",  None),
+                ("right", "PHYS101", "Physics I",                  "4","6",  None),
+                ("taken", "CENG204", "Object-Oriented Programming","4","6",  None),
+            ],
+        },
+    }
 
-        for i, (email, status, gpa, oidb_notes, dean_notes, faculty, est_gpa, oysm, checker_status, checker_errors) in enumerate(scenarios):
-            u = UserORM(email=email, role="applicant")
-            u.set_password("test")
-            db.session.add(u)
-            db.session.flush()
+    def _ranking_score(oysm_str, gpa_str):
+        try:
+            oysm = float(oysm_str) if oysm_str else None
+            gpa  = float(gpa_str)  if gpa_str  else None
+            if oysm is None or gpa is None:
+                return None
+            return round((oysm / 560.0) * 90.0 + (gpa / 4.0) * 10.0, 4)
+        except (TypeError, ValueError):
+            return None
 
-            prog = _PROGRAMS[i % len(_PROGRAMS)]
-            app_obj = ApplicationORM(
-                applicant_id=u.id,
-                full_name=f"Test Applicant {i + 1}",
-                id_number=f"1234567{i:03d}" if email != "applicant5@test" else "TC-INVALID-XYZ",
-                student_number=f"1234567{i:03d}",
-                source_university=_UNIVERSITIES[i % len(_UNIVERSITIES)],
-                is_currently_enrolled=True,
-                target_program=prog,
-                target_department=prog,
-                target_semester=_SEMESTERS[i % len(_SEMESTERS)],
-                current_gpa=gpa,
-                estimated_gpa=est_gpa,
-                oysm_points=oysm,
-                status=status,
-                oidb_notes=oidb_notes,
-                dean_notes=dean_notes,
-                forwarded_faculty=faculty,
-                doc_checker_status=checker_status,
-                doc_checker_errors=checker_errors,
-                created_at=datetime.utcnow() - timedelta(days=len(scenarios) - i),
+    for email, data in intibak_scenarios.items():
+        app_obj = app_objects.get(email)
+        if not app_obj:
+            continue
+        table = IntibakTableORM(
+            application_id=app_obj.id,
+            estimated_gpa=data["estimated_gpa"],
+            ranking_score=_ranking_score(app_obj.oysm_points, app_obj.current_gpa),
+        )
+        db.session.add(table)
+        db.session.flush()
+
+        for pos, (side, code, name, credits, akts, grade) in enumerate(data["courses"]):
+            row = IntibakCourseORM(
+                intibak_table_id=table.id,
+                side=side,
+                course_name=name,
+                course_code=code,
+                credits=credits,
+                akts=akts,
+                grade=grade,
+                position=pos,
             )
-            db.session.add(app_obj)
+            db.session.add(row)
 
-        db.session.commit()
-        click.echo("Seed complete.")
-        click.echo("  Staff  : admin@admin/admin  oidb@test/test  dean@test/test  ygk@test/test(dept:computer_engineering)  ydyo@test/test")
-        click.echo("  Applicants: applicant1@test … applicant12@test  (password: test)")
-        click.echo("  Scenarios:")
-        click.echo("    applicant1:  submitted, needs_manual_check")
-        click.echo("    applicant2:  submitted, auto_checked — GPA too low")
-        click.echo("    applicant3:  submitted, auto_checked — missing transcript + YKS report")
-        click.echo("    applicant4:  forwarded_to_ydyo, auto_checked OK")
-        click.echo("    applicant5:  forwarded_to_ydyo, auto_checked — invalid ID + missing student cert")
-        click.echo("    applicant6:  forwarded_to_dean, auto_checked OK, estimated_gpa set")
-        click.echo("    applicant7:  forwarded_to_ygk, full pipeline complete")
-        click.echo("    applicant8:  returned by OIDB with oidb_notes")
-        click.echo("    applicant9:  cancelled")
-        click.echo("    applicant10: returned by Dean to applicant (dean_notes set)")
-        click.echo("    applicant11: returned by Dean to OIDB — re-entered as submitted (dean_notes set)")
-        click.echo("    applicant12: returned by Dean to YDYO — re-entered as forwarded_to_ydyo (dean_notes set)")
+    db.session.commit()

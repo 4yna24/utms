@@ -114,3 +114,20 @@ class Admin(User):
                 ErrorCode.DB_ERROR,
                 f"Restore failed: {str(exc)}"
             )
+
+    def reset_and_seed(self) -> OperationResult:
+        """Wipe all application data and reload synthetic seed data."""
+        try:
+            from ... import db
+            from ...models import (
+                ApplicationDocumentORM, ApplicationORM, UserORM,
+                IntibakTableORM, IntibakCourseORM,
+            )
+            from ...cli import seed_all
+            seed_all(db, ApplicationDocumentORM, ApplicationORM, UserORM, IntibakTableORM, IntibakCourseORM)
+            return OperationResult.ok(data={"message": "Database wiped and reseeded successfully."})
+        except Exception as exc:
+            return OperationResult.error(
+                ErrorCode.DB_ERROR,
+                f"Reset failed: {str(exc)}"
+            )

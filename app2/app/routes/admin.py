@@ -63,3 +63,16 @@ def restore_backup():
         flash(result.error_msg, "error")
 
     return redirect(url_for("dashboard.index"))
+
+
+@admin_bp.route("/reset-and-seed", methods=["POST"])
+@role_required("admin")
+def reset_and_seed():
+    result = _admin().reset_and_seed()
+
+    if result.success:
+        flash("Database wiped and reseeded with synthetic data.", "success")
+    else:
+        flash(result.error_msg, "error")
+
+    return redirect(url_for("dashboard.index"))
