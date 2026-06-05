@@ -1,4 +1,4 @@
-{% if oidb_applications %}
+{% if status_counts.total > 0 %}
     <div class="panel-tab-state" hidden
          data-filter="{{ active_filter }}"
          data-sort-col="{{ active_sort_col if active_sort_col is not none else '' }}"
@@ -45,6 +45,9 @@
                 </tr>
             </thead>
             <tbody>
+                {% if not oidb_applications %}
+                <tr><td colspan="8" class="subline" style="text-align:center;padding:20px 0;">No applications match this filter.</td></tr>
+                {% endif %}
                 {% for app in oidb_applications %}
                 {%- set checker_errors = app.parsed_checker_errors -%}
                 {%- set has_errors = checker_errors | length > 0 -%}
@@ -222,3 +225,4 @@
 {% else %}
     <p class="subline">No applications submitted yet.</p>
 {% endif %}
+
