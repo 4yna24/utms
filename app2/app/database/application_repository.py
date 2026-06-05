@@ -302,3 +302,16 @@ class ApplicationRepository:
                 ErrorCode.DB_ERROR,
                 f"Failed to delete document: {str(exc)}"
             )
+
+    @staticmethod
+    def flush() -> OperationResult:
+        """Flush pending session changes to the DB without committing."""
+        try:
+            db.session.flush()
+            return OperationResult.ok()
+        except Exception as exc:
+            db.session.rollback()
+            return OperationResult.error(
+                ErrorCode.DB_ERROR,
+                f"Failed to flush session: {str(exc)}"
+            )

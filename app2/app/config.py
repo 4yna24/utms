@@ -1,5 +1,7 @@
 """Application constants and Phase 1 shell configuration."""
 
+from .programs import PROGRAMS_BY_FACULTY, AVAILABLE_PROGRAMS
+
 ROLE_DEFINITIONS = [
     {"name": "Applicant", "slug": "applicant"},
     {"name": "OIDB", "slug": "oidb"},
@@ -16,84 +18,58 @@ APPLICATION_UPLOAD_SUBDIR = "uploads/applications"
 APPLICATION_DOCUMENT_SLOTS = [
     {"slot": 1, "label": "Student Certificate"},
     {"slot": 2, "label": "Transcript"},
+    {"slot": 4, "label": "English Proficiency Certificate"},
     {"slot": 3, "label": "OYSM Points"},
-    {"slot": 4, "label": "English Proficiency Certificate", "optional": True},
-    {"slot": 5, "label": "OYSM Certificate", "optional": True},
+    {"slot": 5, "label": "OYSM Certificate"},
 ]
-# Legacy alias — only required slots
 APPLICATION_REQUIRED_DOCUMENT_SLOTS = [s["slot"] for s in APPLICATION_DOCUMENT_SLOTS if not s.get("optional")]
 
 AVAILABLE_FACULTIES = [
+    "Faculty of Science",
     "Faculty of Engineering",
     "Faculty of Architecture",
-    "Faculty of Business Administration",
-    "Faculty of Arts and Sciences",
-    "Faculty of Law",
-    "Faculty of Medicine",
-    "Faculty of Nursing",
-]
-
-AVAILABLE_PROGRAMS = [
-    "Computer Engineering",
-    "Electrical and Electronics Engineering",
-    "Mechanical Engineering",
-    "Civil Engineering",
-    "Industrial Engineering",
-    "Software Engineering",
-    "Architecture",
-    "Business Administration",
-    "Economics",
-    "International Relations",
-    "Psychology",
-    "Law",
-    "Medicine",
-    "Nursing",
-    "Mathematics",
-    "Physics",
-    "Chemistry",
-    "Biology",
 ]
 
 AVAILABLE_SEMESTERS = [
-    "2024–2025 / Fall",
-    "2024–2025 / Spring",
-    "2025–2026 / Fall",
-    "2025–2026 / Spring",
+    "2026–2027 / Fall",
+    "2026–2027 / Spring",
 ]
 
 # Ordered steps for the applicant status tracker
 APPLICATION_TRACKER_STEPS = [
-    "Application Submitted",
-    "Initial Verification",
-    "Forwarding to Dean's Office",
-    "Under Departmental Review",
-    "Intibak Process",
-    "Result Announcement",
+    "OIDB Check",
+    "YDYO Check",
+    "Dean Review",
+    "YGK Intibak",
+    "OIDB Ranking",
 ]
 
-# Maps application.status → tracker step index (0-based)
+# Maps application.status → tracker step index (0-based).
+# "returned" step is resolved in the template from notes (0 = OIDB, 2 = Dean).
 APPLICATION_STATUS_STEP = {
     "submitted": 0,
-    "returned": 0,       # error at step 0
-    "forwarded_to_ydyo": 2,
+    "forwarded_to_ydyo": 1,
+    "forwarded_to_dean": 2,
+    "forwarded_to_ygk": 3,
+    "returned": 0,       # fallback; template overrides from notes
     "cancelled": -1,
 }
 
 PHASE1_TABS = {
     "applicant": [
         {
-            "title": "Track Application",
-            "description": "View your transfer application status and timeline.",
-            "endpoint": "applicant_api.track_application",
-            "period_open": True,
-            "partial": "partials/panel_applicant_track.html",
-        },
-        {
             "title": "Submit Application",
             "description": "Submit required documents and personal information.",
             "endpoint": "applicant_api.submit_documents",
             "period_open": APPLICATION_SUBMISSION_PERIOD_OPEN,
             "partial": "partials/panel_applicant_submit.html",
+        },
+        {
+            "title": "Track Application",
+            "description": "View your transfer application status and timeline.",
+            "endpoint": "applicant_api.track_application",
+            "period_open": True,
+            "partial": "partials/panel_applicant_track.html",
         },
     ],
     "oidb": [

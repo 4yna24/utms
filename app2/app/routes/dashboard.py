@@ -21,6 +21,7 @@ from ..config import (
     PHASE1_TABS,
     ROLE_DEFINITIONS,
 )
+from ..programs import PROGRAMS_BY_FACULTY
 from ..models import ApplicationORM
 from .common import login_required
 
@@ -189,6 +190,7 @@ def _get_tab_data(
             "applicant_application": app,
             "period_open": APPLICATION_SUBMISSION_PERIOD_OPEN,
             "available_programs": AVAILABLE_PROGRAMS,
+            "programs_by_faculty": PROGRAMS_BY_FACULTY,
             "available_semesters": AVAILABLE_SEMESTERS,
             "document_slots": APPLICATION_DOCUMENT_SLOTS,
             "resubmission_allowed": APPLICATION_RESUBMISSION_ALLOWED,

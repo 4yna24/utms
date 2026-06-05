@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabButtons = document.querySelectorAll('.tab-button');
     const panels = document.querySelectorAll('.workspace-panel');
     const loaded = {};  // panelId → true once content has been fetched
+    let modalPendingForm = null; // shared across all panels so the single OK listener always reads the latest value
 
     // ── Core: activate a panel, lazy-fetch if needed ──
     function activatePanel(targetId, slug, page) {
@@ -294,13 +295,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Confirm modal — lives in dashboard.html outside .workspace-area so position:fixed
         // covers the full viewport (transform on .workspace-panel.active would break it otherwise)
+        // modalPendingForm is hoisted to the DOMContentLoaded scope so every panel's trigger buttons
+        // and the single set of OK/Cancel listeners all share the same variable.
         const modal = document.getElementById('dashboard-confirm-modal');
         if (modal) {
-            let pendingForm = null;
             panel.querySelectorAll('[data-modal-trigger]').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const formId = btn.dataset.form;
-                    pendingForm = formId ? panel.querySelector('#' + formId) : btn.closest('form');
+                    modalPendingForm = formId ? panel.querySelector('#' + formId) : btn.closest('form');
                     modal.querySelector('.confirm-modal-msg').textContent = btn.dataset.modalMsg || 'Are you sure?';
                     modal.hidden = false;
                 });
@@ -310,16 +312,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 modal._wired = true;
                 modal.querySelector('.confirm-modal-cancel').addEventListener('click', () => {
                     modal.hidden = true;
-                    pendingForm = null;
+                    modalPendingForm = null;
                 });
                 modal.querySelector('.confirm-modal-ok').addEventListener('click', () => {
                     modal.hidden = true;
-                    if (pendingForm) pendingForm.submit();
-                    pendingForm = null;
+                    if (modalPendingForm) modalPendingForm.submit();
+                    modalPendingForm = null;
                 });
                 modal.querySelector('.confirm-modal-overlay').addEventListener('click', () => {
                     modal.hidden = true;
-                    pendingForm = null;
+                    modalPendingForm = null;
                 });
             }
         }
@@ -344,19 +346,71 @@ document.addEventListener('DOMContentLoaded', () => {
             if (n === steps.length - 1) populateReview();
         }
 
+        function validateTurkishId(tc) {
+            if (!tc || tc.length !== 11 || !/^\d+$/.test(tc)) return false;
+            if (tc[0] === '0') return false;
+            const d = tc.split('').map(Number);
+            if (((d[0]+d[2]+d[4]+d[6]+d[8]) * 7 - (d[1]+d[3]+d[5]+d[7])) % 10 !== d[9]) return false;
+            if ((d[0]+d[1]+d[2]+d[3]+d[4]+d[5]+d[6]+d[7]+d[8]+d[9]) % 10 !== d[10]) return false;
+            return true;
+        }
+
         function validateStep(n) {
             const step = steps[n];
             const inputs = step.querySelectorAll('input[required], select[required], textarea[required]');
             let ok = true;
+            let firstError = null;
+
             inputs.forEach(el => {
                 el.style.borderColor = '';
-                if (!el.value.trim()) { el.style.borderColor = '#ef4444'; ok = false; }
+                if (el.type === 'file') {
+                    const wrap = el.closest('.doc-upload-label');
+                    if (wrap) wrap.style.outline = '';
+                    if (!el.files || el.files.length === 0) {
+                        if (wrap) wrap.style.outline = '2px solid #ef4444';
+                        ok = false;
+                        if (!firstError) firstError = el;
+                    } else {
+                        const file = el.files[0];
+                        if (!file.name.toLowerCase().endsWith('.pdf')) {
+                            if (wrap) wrap.style.outline = '2px solid #ef4444';
+                            ok = false;
+                            if (!firstError) firstError = el;
+                            alert(`"${el.dataset.docLabel || el.name}" must be a PDF file.`);
+                        } else if (file.size > 5 * 1024 * 1024) {
+                            if (wrap) wrap.style.outline = '2px solid #ef4444';
+                            ok = false;
+                            if (!firstError) firstError = el;
+                            alert(`"${el.dataset.docLabel || el.name}" exceeds the 5 MB size limit.`);
+                        }
+                    }
+                } else if (!el.value.trim()) {
+                    el.style.borderColor = '#ef4444';
+                    ok = false;
+                    if (!firstError) firstError = el;
+                }
             });
+
+            const idInput = step.querySelector('input[name="id_number"]');
+            if (idInput && idInput.value.trim()) {
+                if (!validateTurkishId(idInput.value.trim())) {
+                    idInput.style.borderColor = '#ef4444';
+                    ok = false;
+                }
+            }
+
             const gpaInput = step.querySelector('input[name="current_gpa"]');
             if (gpaInput && gpaInput.value) {
                 const v = parseFloat(gpaInput.value);
                 if (isNaN(v) || v < 0 || v > 4.0) { gpaInput.style.borderColor = '#ef4444'; ok = false; }
             }
+
+            const oysmInput = step.querySelector('input[name="oysm_points"]');
+            if (oysmInput && oysmInput.value) {
+                const v = parseFloat(oysmInput.value);
+                if (isNaN(v) || v < 0 || v > 560) { oysmInput.style.borderColor = '#ef4444'; ok = false; }
+            }
+
             return ok;
         }
 
@@ -379,8 +433,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (get('rv-semester')) get('rv-semester').textContent = val('target_semester');
             if (get('rv-name')) get('rv-name').textContent = val('full_name');
             if (get('rv-id')) get('rv-id').textContent = val('id_number');
+            if (get('rv-univ')) get('rv-univ').textContent = val('source_university') || '—';
             if (get('rv-gpa')) get('rv-gpa').textContent = val('current_gpa');
-            if (get('rv-univ')) get('rv-univ').textContent = val('source_university') || 'Not enrolled';
+            if (get('rv-oysm')) get('rv-oysm').textContent = val('oysm_points');
             const rvDocs = get('rv-docs');
             if (rvDocs) {
                 rvDocs.innerHTML = '';

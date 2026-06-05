@@ -139,10 +139,10 @@ class ApplicationService(BaseService):
             )
 
         # Check status
-        if application.status != "returned":
+        if application.status not in ("returned", "cancelled"):
             return self.error(
                 ErrorCode.VALIDATION_FAILED,
-                "Only returned applications can be resubmitted"
+                "Only returned or cancelled applications can be resubmitted"
             )
 
         # Delegate to applicant class

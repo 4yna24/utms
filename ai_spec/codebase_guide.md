@@ -50,13 +50,14 @@ app/
 │   ├── common.py       ← Shared decorators (@login_required, @role_required)
 │   └── __init__.py
 ├── cli.py              ← Flask CLI management commands (init-admin, seed-db)
+├── programs.py         ← PROGRAMS_BY_FACULTY dict + AVAILABLE_PROGRAMS flat list (source of truth for program data)
 ├── static/
 │   ├── css/
 │   │   ├── main.css        ← Toast styling, global layout
 │   │   ├── auth.css        ← Auth page centering
 │   │   └── dashboard.css   ← Dashboard tab system
 │   └── js/
-│       └── dashboard.js    ← Tab switching, filters, sorting, expand rows
+│       └── dashboard.js    ← Tab switching, filters, sorting, expand rows, confirm modal
 ├── templates/
 │   ├── base.html       ← Page shell with nav, flash messages
 │   ├── dashboard.html  ← Tab system (auto-includes partials)
@@ -69,7 +70,7 @@ app/
 │       ├── panel_admin_database.html
 │       └── ...
 ├── __init__.py         ← create_app(), db initialization, auto-fingerprint listener
-└── config.py           ← PHASE1_TABS, AVAILABLE_PROGRAMS, feature flags
+└── config.py           ← PHASE1_TABS, imports from programs.py, feature flags
 ```
 
 The project root also has:
@@ -199,6 +200,27 @@ class ApplicationRepository:
 - ✅ Use specific ErrorCodes for each failure mode
 - ✅ Only place where db.session is used directly
 
+#### `ApplicationRepository.flush()`
+
+Call `app_repo.flush()` between staged DELETEs and staged INSERTs on the same unique key. SQLAlchemy's unit-of-work does not guarantee DELETE-before-INSERT order within a single flush/commit, so failing to flush first causes UNIQUE constraint violations.
+
+The canonical case is resubmission: old `ApplicationDocumentORM` rows are deleted then new ones with the same `(application_id, document_slot)` are inserted. Without the intermediate flush the DB sees both the old and new rows simultaneously.
+
+```python
+# Correct resubmit pattern in applicant.py:
+for old_doc in old_docs:
+    app_repo.delete_document(old_doc)
+
+flush_result = app_repo.flush()   # sends DELETEs to DB before INSERTs
+if not flush_result.success:
+    app_repo.rollback()
+    return flush_result
+
+docs = self.save_documents(...)
+app_repo.add_documents(docs)
+app_repo.commit()
+```
+
 ### Layer 5: `models/` — Data Shape (No Logic)
 SQLAlchemy ORM models define columns, relationships, and basic serialization. NO business logic. See **ORM Model Naming Convention** above.
 
@@ -268,6 +290,62 @@ else:
 
 ---
 
+## Application Status Pipeline
+
+All `ApplicationORM.status` values and their meaning:
+
+| Status | Set by | Meaning |
+|--------|--------|---------|
+| `submitted` | Applicant (submit / resubmit) | Waiting for OIDB check |
+| `forwarded_to_ydyo` | OIDB | OIDB approved; waiting for YDYO check |
+| `forwarded_to_dean` | YDYO | YDYO approved; waiting for Dean review |
+| `forwarded_to_ygk` | Dean | Dean approved; waiting for YGK intibak |
+| `returned` | OIDB or Dean | Sent back to applicant for correction |
+| `cancelled` | Applicant | Cancelled by applicant |
+
+**Identifying who returned an application** — the `returned` status alone does not say who triggered it. Check the notes fields:
+- `oidb_notes` set, `dean_notes` null → returned by OIDB (at step 0)
+- `dean_notes` set → returned by Dean (at step 2)
+
+The applicant tracker uses this logic to place the error marker on the correct timeline step.
+
+**Resubmission** — both `returned` and `cancelled` applications can be resubmitted. The `resubmit` method in `Applicant` clears `oidb_notes`, `dean_notes`, `doc_checker_status`, and `doc_checker_errors` before setting status back to `submitted`.
+
+### Applicant tracker steps
+
+Defined in `config.py` as `APPLICATION_TRACKER_STEPS` (maps 1:1 to index in `APPLICATION_STATUS_STEP`):
+
+| Index | Step label | Active when status is |
+|-------|-----------|----------------------|
+| 0 | OIDB Check | `submitted` |
+| 1 | YDYO Check | `forwarded_to_ydyo` |
+| 2 | Dean Review | `forwarded_to_dean` |
+| 3 | YGK Intibak | `forwarded_to_ygk` |
+| 4 | OIDB Ranking | *(future status — shows pending)* |
+
+---
+
+## Applicant Class — Validation Rules (`classes/users/applicant.py`)
+
+### Form validation (`validate_form_data`)
+
+All fields are mandatory: `full_name`, `id_number`, `target_program`, `target_semester`, `current_gpa`, `source_university`, `oysm_points`.
+
+- **Turkish National ID** — validated by `validate_turkish_id()` (module-level function in `applicant.py`): must be 11 digits, first digit non-zero, passes the standard checksum algorithm.
+- **GPA** — must be a float in [0.00, 4.00].
+- **OYSM points** — must be a non-negative float. Default pre-filled value in the UI is 400.
+
+### Document validation (`_validate_required_docs`)
+
+Called before `save_documents` in both `submit` and `resubmit`. All slots in `APPLICATION_DOCUMENT_SLOTS` that do not have `"optional": True` are required. Each required file must:
+- Be present (non-empty filename)
+- Have a `.pdf` extension
+- Not exceed 5 MB (checked via `stream.seek(0, 2)`)
+
+`save_documents` repeats the extension and size checks as a safety net when actually writing to disk.
+
+---
+
 ## Admin Role
 
 Admin is a special role for managing the software itself. It is separate from all business roles (applicant, oidb, dean, ygk, ydyo).
@@ -312,13 +390,15 @@ Tabs use **lazy loading**: the dashboard shell renders immediately with empty pa
 Slugs are computed from tab titles by `_slugify()` in `dashboard.py`:
 `re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')`
 
-| Role | Tab title | Slug |
-|------|-----------|------|
-| OIDB | Check Documents | `check-documents` |
-| Dean | Receive & Forward Applications | `receive-forward-applications` |
-| YDYO | Set Prep School Status | `set-prep-school-status` |
-| Applicant | Track Application | `track-application` |
-| Applicant | Submit Application | `submit-application` |
+| Role | Tab title | Slug | Panel ID |
+|------|-----------|------|----------|
+| Applicant | Submit Application | `submit-application` | `panel-1` |
+| Applicant | Track Application | `track-application` | `panel-2` |
+| OIDB | Check Documents | `check-documents` | `panel-1` |
+| Dean | Receive & Forward Applications | `receive-forward-applications` | `panel-1` |
+| YDYO | Set Prep School Status | `set-prep-school-status` | `panel-1` |
+
+Panel IDs are assigned by `loop.index` in `dashboard.html` — they depend on tab order in `PHASE1_TABS`. Tab-jump buttons inside lazy-loaded partials must use the correct `data-target` panel ID. **Submit Application is `panel-1` for applicants** (it is listed first in `PHASE1_TABS["applicant"]`).
 
 ### Adding a new tab — four touches
 
@@ -376,24 +456,29 @@ Partials receive: `pagination` dict, `status_counts` dict, `active_filter` str, 
 
 **Tab definitions** (`PHASE1_TABS`) — tabs per role, including `"admin"`. `"partial": None` entries fall back to "coming soon" text.
 
-**Reference data** — lists that populate dropdowns:
-- `AVAILABLE_PROGRAMS` — applicant target programs
-- `AVAILABLE_SEMESTERS` — available intake semesters
-- `AVAILABLE_FACULTIES` — faculty names
+**Reference data** — lists that populate dropdowns. Programs are defined in `programs.py` and imported; everything else lives directly in `config.py`:
+- `PROGRAMS_BY_FACULTY` — dict of `{faculty_name: [program, …]}` used to render `<optgroup>` dropdowns
+- `AVAILABLE_PROGRAMS` — flat list derived from `PROGRAMS_BY_FACULTY`, used wherever a simple list suffices
+- `AVAILABLE_SEMESTERS` — available intake semesters (currently `2026–2027 / Fall` and `2026–2027 / Spring`)
+- `AVAILABLE_FACULTIES` — Faculty of Science, Faculty of Engineering, Faculty of Architecture
 
-**Document slots** (`APPLICATION_DOCUMENT_SLOTS`) — ordered list of `{slot, label, optional?}` dicts used by all submit and review screens. Current slots:
+**Document slots** (`APPLICATION_DOCUMENT_SLOTS`) — ordered list of `{slot, label}` dicts used by all submit and review screens. All slots are mandatory (no `"optional"` key). The display order does not need to match the slot numbers.
 
-| Slot | Label | Optional |
-|------|-------|---------|
-| 1 | Student Certificate | No |
-| 2 | Transcript | No |
-| 3 | OYSM Points | No |
-| 4 | English Proficiency Certificate | Yes |
-| 5 | OYSM Certificate | Yes |
+| Display order | Slot | Label |
+|---------------|------|-------|
+| 1st | 1 | Student Certificate |
+| 2nd | 2 | Transcript |
+| 3rd | 4 | English Proficiency Certificate |
+| 4th | 3 | OYSM Points |
+| 5th | 5 | OYSM Certificate |
 
-Optional slots remain technically optional (not validated on submit) but the `(optional)` text label is intentionally hidden from the UI — do not add it back.
+OYSM Points (slot 3) and OYSM Certificate (slot 5) are listed adjacent so they appear together in the UI. The slot numbers stored in the DB are unchanged; only the display order differs.
+
+`APPLICATION_REQUIRED_DOCUMENT_SLOTS` is derived as `[s["slot"] for s in APPLICATION_DOCUMENT_SLOTS if not s.get("optional")]`.
 
 **Feature flags** — `APPLICATION_SUBMISSION_PERIOD_OPEN`, `APPLICATION_CANCELLATION_ALLOWED`, `APPLICATION_RESUBMISSION_ALLOWED`. Flip these to open/close periods without touching logic.
+
+**Tracker** — `APPLICATION_TRACKER_STEPS` and `APPLICATION_STATUS_STEP` define the applicant-facing pipeline display. See **Application Status Pipeline** section above.
 
 ---
 
@@ -519,7 +604,24 @@ All interactive behavior for the dashboard lives here:
 - **Chip filters** — any `.stats-row[data-filter-table="<id>"]` auto-wires its `[data-filter]` chips to filter the named table by `data-status` on header rows
 - **Column sort** — any `<table id="...">` with `<th data-sort="N">` gets clickable sort (row-pairs kept together during sort so expand rows stay linked)
 - **Expand rows** — `.expand-btn` opens/closes `.app-row-expand` with animated slide; only one open at a time
-- **Confirm modal** — any button with `data-modal-trigger` shows `#dashboard-confirm-modal`. The button must also have `data-modal-msg="…"` (message text) and `data-form="<form-id>"` (which form to submit on confirm). Clicking Cancel, Confirm, or the overlay closes it. Close buttons are wired only once via `modal._wired` guard so re-fetching the panel doesn't stack duplicate listeners.
+- **Confirm modal** — any button with `data-modal-trigger` shows `#dashboard-confirm-modal`. The button must also have `data-modal-msg="…"` (message text) and `data-form="<form-id>"` (which form to submit on confirm). Clicking Cancel, Confirm, or the overlay closes it.
+
+### Confirm modal — shared `modalPendingForm` variable
+
+The modal's OK/Cancel/overlay listeners are wired **once** (guarded by `modal._wired`). The form to submit is stored in `modalPendingForm`, declared at the top of the `DOMContentLoaded` scope — **not** inside `afterFetch`. This is load-order-safe: whichever panel is fetched first wires the listeners, but every subsequent panel's trigger buttons all write to the same shared variable that those listeners read.
+
+**Anti-pattern that breaks modals**: declaring `let pendingForm` inside `afterFetch`. Each panel load creates its own copy; the once-wired OK listener captures only the first copy and never sees updates from later panels.
+
+### Multi-step application form (`initAppForm`)
+
+`validateStep(n)` validates the current step before advancing:
+- All `[required]` inputs/selects must be non-empty. File inputs are handled separately — empty file or wrong type shows a red outline on the `doc-upload-label` wrapper.
+- **Turkish ID** (`input[name="id_number"]`) — `validateTurkishId()` runs the 11-digit checksum. Invalid IDs highlight the field red and block progression.
+- **GPA** — must be a float in [0, 4.0].
+- **OYSM points** — must be a non-negative float.
+- **Document files** — must be present, `.pdf` extension, and ≤ 5 MB. Wrong format/size shows an `alert()` in addition to the red outline.
+
+`populateReview()` fills the step-4 review panel including `rv-oysm` (OYSM Points).
 
 ### Re-fetch (filter / sort / page)
 
@@ -571,4 +673,3 @@ Browser
           → dashboard.html shell
               → {% include tab.partial %} (templates/partials/)
 ```
- 

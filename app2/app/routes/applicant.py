@@ -115,8 +115,8 @@ def resubmit_application():
     application = result.data
     
     # Check status
-    if application.status != "returned":
-        flash("Only returned applications can be resubmitted.", "error")
+    if application.status not in ("returned", "cancelled"):
+        flash("Only returned or cancelled applications can be resubmitted.", "error")
         return redirect(url_for("dashboard.index"))
 
     # Resubmit application
