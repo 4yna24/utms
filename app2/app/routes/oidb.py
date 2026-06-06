@@ -164,3 +164,64 @@ def view_document(doc_id):
     
     doc = result.data
     return send_file(doc.file_path, mimetype="application/pdf", as_attachment=False)
+
+
+@oidb_api_bp.route("/download-ranking-xlsx", methods=["GET"])
+@role_required("oidb")
+def download_ranking_xlsx():
+    """Download rankings as an XLSX file."""
+    import io
+    import openpyxl
+    from ..database import get_application_repository
+    
+    # Get all intibak-complete applications
+    result = get_application_repository().get_intibak_complete_apps()
+    all_apps = result.data or []
+    
+    # Sort by ranking score DESC
+    all_apps.sort(
+        key=lambda a: -(a.intibak_table.ranking_score or 0) if a.intibak_table else 0
+    )
+    
+    # Filter by program if provided
+    selected_program = request.args.get("program", "all")
+    if selected_program != "all":
+        all_apps = [a for a in all_apps if a.target_program == selected_program]
+        
+    anonymize = request.args.get("anonymize", "false").lower() == "true"
+    
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Rankings"
+    
+    headers = ["Rank", "Name", "Program", "Semester", "OYSM", "GPA (Current)", "Ranking Score"]
+    ws.append(headers)
+    
+    for idx, app in enumerate(all_apps, start=1):
+        score = app.intibak_table.ranking_score if app.intibak_table else None
+        
+        name = app.full_name
+        if anonymize:
+            name = f"Applicant #{app.id}"
+            
+        row = [
+            idx,
+            name,
+            app.target_program or app.target_department,
+            app.target_semester or "-",
+            app.oysm_points or "-",
+            app.current_gpa,
+            round(score, 2) if score is not None else "-"
+        ]
+        ws.append(row)
+        
+    out = io.BytesIO()
+    wb.save(out)
+    out.seek(0)
+    
+    return send_file(
+        out,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name="rankings.xlsx"
+    )
