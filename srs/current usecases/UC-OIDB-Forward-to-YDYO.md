@@ -34,8 +34,8 @@ OIDB staff opens an individual applicant's details and documents, reviews them, 
 3. OIDB finds an application with "Submitted" status and clicks its **Expand** button.
 4. The row expands below, showing:
    - A Document Checker status banner.
-   - Applicant details (name, program, semester, email, ID number, GPA, OYSM points, university, enrollment status).
-   - A document list with a **View** button for each of the five slots (Student Certificate, Transcript, English Proficiency Certificate, OYSM Points, OYSM Certificate).
+   - Applicant details (name, program, semester, email, ID number, GPA, OSYM points, university, enrollment status).
+   - A document list with a **View** button for each of the five slots (Student Certificate, Transcript, English Proficiency Certificate, OSYM Points, OSYM Certificate).
    - Action buttons: **Approve & Forward to YDYO** and **Return to Applicant**.
 5. OIDB optionally clicks **View** on any document to open the PDF in a new browser tab.
 6. OIDB clicks **Approve & Forward to YDYO**.

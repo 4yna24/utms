@@ -94,7 +94,7 @@ _SLOT_LABELS: dict[int, str] = {
     2: "Transcript",
     3: "YKS Score Report",
     4: "English Proficiency Certificate",
-    5: "OYSM Certificate",
+    5: "OSYM Certificate",
 }
 
 

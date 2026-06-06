@@ -261,13 +261,13 @@ def _get_tab_data(
             right_courses = [c for c in intibak_table.courses if c.side == "right"]
             taken_courses = [c for c in intibak_table.courses if c.side == "taken"]
 
-        # Pre-compute ranking score from applicant's submitted GPA + OYSM (no estimated GPA)
+        # Pre-compute ranking score from applicant's submitted GPA + OSYM (no estimated GPA)
         ranking_score = None
-        if selected_app and selected_app.oysm_points and selected_app.current_gpa:
+        if selected_app and selected_app.osym_points and selected_app.current_gpa:
             try:
-                oysm = float(selected_app.oysm_points)
+                osym = float(selected_app.osym_points)
                 gpa  = float(selected_app.current_gpa)
-                ranking_score = round((oysm / 560.0) * 90.0 + (gpa / 4.0) * 10.0, 4)
+                ranking_score = round((osym / 560.0) * 90.0 + (gpa / 4.0) * 10.0, 4)
             except (TypeError, ValueError):
                 pass
         return {

@@ -45,8 +45,8 @@
                                         <span class="detail-label">Email</span><span>{{ app.applicant.email if app.applicant else '—' }}</span>
                                         <span class="detail-label">ID Number</span><span>{{ app.id_number or app.student_number }}</span>
                                         <span class="detail-label">GPA</span><span>{{ app.current_gpa }}</span>
-                                        {% if app.oysm_points %}
-                                            <span class="detail-label">OYSM Points</span><span>{{ app.oysm_points }}</span>
+                                        {% if app.osym_points %}
+                                            <span class="detail-label">OSYM Points</span><span>{{ app.osym_points }}</span>
                                         {% endif %}
                                         <span class="detail-label">University</span><span>{{ app.source_university or '—' }}</span>
                                         <span class="detail-label">Enrolled</span><span>{{ 'Yes' if app.is_currently_enrolled else 'No' }}</span>

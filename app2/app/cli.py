@@ -102,7 +102,7 @@ def seed_all(db, ApplicationDocumentORM, ApplicationORM, UserORM, IntibakTableOR
     ]
 
     # (full_name, email, status, program, faculty_dept_key,
-    #  gpa, oysm, checker_status, checker_errors,
+    #  gpa, osym, checker_status, checker_errors,
     #  oidb_notes, dean_notes, prep_school_status, enrolled, uni_idx)
     scenarios = [
         # ── Submitted — not yet auto-checked ────────────────────────────────
@@ -232,7 +232,7 @@ def seed_all(db, ApplicationDocumentORM, ApplicationORM, UserORM, IntibakTableOR
 
     for idx, row in enumerate(scenarios):
         (full_name, email, status, program, faculty_key,
-         gpa, oysm, checker_status, checker_errors,
+         gpa, osym, checker_status, checker_errors,
          oidb_notes, dean_notes, prep_status, enrolled, uni_idx) = row
 
         u = UserORM(email=email, role="applicant")
@@ -252,7 +252,7 @@ def seed_all(db, ApplicationDocumentORM, ApplicationORM, UserORM, IntibakTableOR
             target_department=program,
             target_semester="2026–2027 / Fall",
             current_gpa=gpa,
-            oysm_points=oysm,
+            osym_points=osym,
             status=status,
             oidb_notes=oidb_notes,
             dean_notes=dean_notes,
@@ -270,7 +270,7 @@ def seed_all(db, ApplicationDocumentORM, ApplicationORM, UserORM, IntibakTableOR
 
     # ── Intibak tables for intibak_complete applicants ──────────────────────
     # Courses are realistic CE curriculum rows; ranking_score computed from formula:
-    # score = (oysm / 560) * 90 + (gpa / 4.0) * 10
+    # score = (osym / 560) * 90 + (gpa / 4.0) * 10
     intibak_scenarios = {
         "alper.tan@test": {
             "estimated_gpa": 3.55,
@@ -341,13 +341,13 @@ def seed_all(db, ApplicationDocumentORM, ApplicationORM, UserORM, IntibakTableOR
     }
 
 
-    def _ranking_score(oysm_str, gpa_str):
+    def _ranking_score(osym_str, gpa_str):
         try:
-            oysm = float(oysm_str) if oysm_str else None
+            osym = float(osym_str) if osym_str else None
             gpa  = float(gpa_str)  if gpa_str  else None
-            if oysm is None or gpa is None:
+            if osym is None or gpa is None:
                 return None
-            return round((oysm / 560.0) * 90.0 + (gpa / 4.0) * 10.0, 4)
+            return round((osym / 560.0) * 90.0 + (gpa / 4.0) * 10.0, 4)
         except (TypeError, ValueError):
             return None
 
@@ -358,7 +358,7 @@ def seed_all(db, ApplicationDocumentORM, ApplicationORM, UserORM, IntibakTableOR
         table = IntibakTableORM(
             application_id=app_obj.id,
             estimated_gpa=data["estimated_gpa"],
-            ranking_score=_ranking_score(app_obj.oysm_points, app_obj.current_gpa),
+            ranking_score=_ranking_score(app_obj.osym_points, app_obj.current_gpa),
         )
         db.session.add(table)
         db.session.flush()

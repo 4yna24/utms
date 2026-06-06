@@ -35,7 +35,7 @@ YDYO staff opens an individual applicant's details and reviews their English Pro
 3. YDYO finds an application and clicks its **Expand** button.
 4. The row expands, showing:
    - A Document Checker status banner (Needs Manual Check / Checked OK / Errors Found).
-   - Applicant details (email, ID number, GPA, OYSM points, university).
+   - Applicant details (email, ID number, GPA, OSYM points, university).
    - An English Proficiency Document section with the filename, a checkbox to mark it as verified, and a **View** button.
    - Two action buttons: **English Eligible — Forward to Dean** and **Needs Internal Test — Forward to Dean**.
 5. YDYO clicks **View** next to the English Proficiency document to open the PDF in a new tab and review it.
@@ -139,7 +139,7 @@ A red "Errors Found" banner lists the issues inside the expanded row. YDYO can s
 - No error banner is shown (doc checker passed).
 - English Proficiency Document section shows the filename and a **View** button.
 - A checkbox labelled "Mark verified" is present next to the document.
-- Applicant details (email, GPA, ID number, OYSM points, university) are visible.
+- Applicant details (email, GPA, ID number, OSYM points, university) are visible.
 - Both **English Eligible — Forward to Dean** and **Needs Internal Test — Forward to Dean** buttons are present.
 
 ---

@@ -68,14 +68,14 @@ def update_course(course_id: int):
 
 def _calc_ranking_score(app_obj) -> float | None:
     """Horizontal transfer ranking score (0–100):
-    score = (oysm / 560) * 90  +  (current_gpa / 4.0) * 10
-    Uses the applicant's submitted GPA and OYSM. Returns None when either is absent."""
+    score = (osym / 560) * 90  +  (current_gpa / 4.0) * 10
+    Uses the applicant's submitted GPA and OSYM. Returns None when either is absent."""
     try:
-        oysm = float(app_obj.oysm_points) if app_obj and app_obj.oysm_points else None
+        osym = float(app_obj.osym_points) if app_obj and app_obj.osym_points else None
         gpa  = float(app_obj.current_gpa)  if app_obj and app_obj.current_gpa  else None
-        if oysm is None or gpa is None:
+        if osym is None or gpa is None:
             return None
-        return round((oysm / 560.0) * 90.0 + (gpa / 4.0) * 10.0, 4)
+        return round((osym / 560.0) * 90.0 + (gpa / 4.0) * 10.0, 4)
     except (TypeError, ValueError):
         return None
 

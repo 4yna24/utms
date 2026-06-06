@@ -67,7 +67,7 @@ class Applicant(User, IDocumentHandler):
             "current_gpa": (form.get("current_gpa") or "").strip(),
             "source_university": (form.get("source_university") or "").strip(),
             "is_currently_enrolled": True,
-            "oysm_points": (form.get("oysm_points") or "").strip(),
+            "osym_points": (form.get("osym_points") or "").strip(),
         }
 
     @staticmethod
@@ -80,7 +80,7 @@ class Applicant(User, IDocumentHandler):
             "target_semester",
             "current_gpa",
             "source_university",
-            "oysm_points",
+            "osym_points",
         ]
         if not all(bool(form_data.get(k)) for k in required):
             return OperationResult.error(
@@ -103,11 +103,11 @@ class Applicant(User, IDocumentHandler):
             return OperationResult.error(ErrorCode.VALIDATION_FAILED, "GPA must be a valid number (e.g. 3.50).")
 
         try:
-            oysm = float(form_data["oysm_points"])
-            if not (0 <= oysm <= 560):
-                return OperationResult.error(ErrorCode.VALIDATION_FAILED, "OYSM points must be between 0 and 560.")
+            osym = float(form_data["osym_points"])
+            if not (0 <= osym <= 560):
+                return OperationResult.error(ErrorCode.VALIDATION_FAILED, "OSYM points must be between 0 and 560.")
         except ValueError:
-            return OperationResult.error(ErrorCode.VALIDATION_FAILED, "OYSM points must be a valid number.")
+            return OperationResult.error(ErrorCode.VALIDATION_FAILED, "OSYM points must be a valid number.")
 
         return OperationResult.ok()
 

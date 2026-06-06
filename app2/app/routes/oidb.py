@@ -194,7 +194,7 @@ def download_ranking_xlsx():
     ws = wb.active
     ws.title = "Rankings"
     
-    headers = ["Rank", "Name", "Program", "Semester", "OYSM", "GPA (Current)", "Ranking Score"]
+    headers = ["Rank", "Name", "Program", "Semester", "OSYM", "GPA (Current)", "Ranking Score"]
     ws.append(headers)
     
     for idx, app in enumerate(all_apps, start=1):
@@ -216,7 +216,7 @@ def download_ranking_xlsx():
             name,
             app.target_program or app.target_department,
             app.target_semester or "-",
-            app.oysm_points or "-",
+            app.osym_points or "-",
             app.current_gpa,
             round(score, 2) if score is not None else "-"
         ]

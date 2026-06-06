@@ -32,7 +32,7 @@ OIDB staff views the final ranking table of applicants whose intibak evaluations
 2. The tab loads and shows:
    - A **Filter by Program** dropdown (showing "All Programs" by default) and an applicant count chip.
    - An **Anonymize Applicants** checkbox and a **Download XLSX** button on the right.
-   - A ranking table listing all intibak-complete applicants sorted from highest to lowest ranking score. Columns: rank (#), name, program, semester, OYSM points, current GPA, and ranking score (shown in purple).
+   - A ranking table listing all intibak-complete applicants sorted from highest to lowest ranking score. Columns: rank (#), name, program, semester, OSYM points, current GPA, and ranking score (shown in purple).
 3. OIDB reads through the ranking table to review the ranked order.
 4. OIDB selects a specific program from the **Filter by Program** dropdown.
 5. The table dims briefly and reloads showing only applicants in that program, re-ranked from 1. The applicant count chip updates.
@@ -72,7 +72,7 @@ The downloaded file contains only applicants in the selected program, with names
 
 ## Assumptions
 
-- The ranking score for each applicant was calculated by the system as: `(OYSM / 560) × 90 + (GPA / 4.0) × 10`, giving a score between 0 and 100. OIDB does not need to calculate or verify this manually.
+- The ranking score for each applicant was calculated by the system as: `(OSYM / 560) × 90 + (GPA / 4.0) × 10`, giving a score between 0 and 100. OIDB does not need to calculate or verify this manually.
 - Only applicants with status "Intibak Complete" appear in this table. Applicants still in progress are not shown.
 
 ---
@@ -93,7 +93,7 @@ The downloaded file contains only applicants in the selected program, with names
 **Expected Result:**
 - The table loads showing all intibak-complete applicants.
 - The first row has the highest ranking score; each subsequent row has an equal or lower score.
-- Columns shown: #, Name, Program, Semester, OYSM, GPA (Current), Ranking Score.
+- Columns shown: #, Name, Program, Semester, OSYM, GPA (Current), Ranking Score.
 - The applicant count chip shows the correct number.
 - The **Filter by Program** dropdown shows "All Programs" as the default.
 - The **Anonymize Applicants** checkbox is unchecked by default.
@@ -173,7 +173,7 @@ The downloaded file contains only applicants in the selected program, with names
 **Expected Result:**
 - An XLSX file downloads to the computer.
 - The filename begins with "UTMS Ranking for [year]" and includes the current date and time.
-- The file contains one row per applicant with columns: Rank, Name, Program, Semester, OYSM, GPA (Current), Ranking Score.
+- The file contains one row per applicant with columns: Rank, Name, Program, Semester, OSYM, GPA (Current), Ranking Score.
 - Names are shown in full.
 - Applicants are ordered from highest to lowest ranking score.
 
@@ -206,7 +206,7 @@ The downloaded file contains only applicants in the selected program, with names
 - The file downloads with a filename starting "Anonymized UTMS Ranking for [year]".
 - In the Name column, each name part longer than 3 characters has its remaining letters replaced with asterisks (e.g., "Aykhan Aliyev" → "Ayk*** Ali****").
 - Name parts 3 characters or shorter are left unchanged.
-- All other columns (rank, program, OYSM, GPA, score) are unmasked.
+- All other columns (rank, program, OSYM, GPA, score) are unmasked.
 
 ---
 

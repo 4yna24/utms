@@ -338,11 +338,11 @@ Defined in `config.py` as `APPLICATION_TRACKER_STEPS` (maps 1:1 to index in `APP
 
 ### Form validation (`validate_form_data`)
 
-All fields are mandatory: `full_name`, `id_number`, `target_program`, `target_semester`, `current_gpa`, `source_university`, `oysm_points`. Both `current_gpa` and `oysm_points` feed directly into the ranking score formula — they must be accurate.
+All fields are mandatory: `full_name`, `id_number`, `target_program`, `target_semester`, `current_gpa`, `source_university`, `osym_points`. Both `current_gpa` and `osym_points` feed directly into the ranking score formula — they must be accurate.
 
 - **Turkish National ID** — validated by `validate_turkish_id()` (module-level function in `applicant.py`): must be 11 digits, first digit non-zero, passes the standard checksum algorithm.
 - **GPA** — must be a float in [0.00, 4.00].
-- **OYSM points** — must be a non-negative float. Default pre-filled value in the UI is 400.
+- **OSYM points** — must be a non-negative float. Default pre-filled value in the UI is 400.
 
 ### Document validation (`_validate_required_docs`)
 
@@ -481,10 +481,10 @@ Partials receive: `pagination` dict, `status_counts` dict, `active_filter` str, 
 | 1st | 1 | Student Certificate |
 | 2nd | 2 | Transcript |
 | 3rd | 4 | English Proficiency Certificate |
-| 4th | 3 | OYSM Points |
-| 5th | 5 | OYSM Certificate |
+| 4th | 3 | OSYM Points |
+| 5th | 5 | OSYM Certificate |
 
-OYSM Points (slot 3) and OYSM Certificate (slot 5) are listed adjacent so they appear together in the UI. The slot numbers stored in the DB are unchanged; only the display order differs.
+OSYM Points (slot 3) and OSYM Certificate (slot 5) are listed adjacent so they appear together in the UI. The slot numbers stored in the DB are unchanged; only the display order differs.
 
 `APPLICATION_REQUIRED_DOCUMENT_SLOTS` is derived as `[s["slot"] for s in APPLICATION_DOCUMENT_SLOTS if not s.get("optional")]`.
 
@@ -511,7 +511,7 @@ FLASK_APP=run.py flask seed-db --yes                   # skip confirmation (usef
 - Staff: `admin@admin/admin`, `oidb@test/test`, `dean@test/test`, `ygk@test/test` (`department=computer_engineering`), `ydyo@test/test`
 - Applicants `applicant1@test` … `applicant12@test` (password: `test`), covering all workflow statuses and edge cases
 - `applicant7@test` has `forwarded_faculty="computer_engineering"` so `ygk@test` can see it
-- OYSM points use realistic 100–560 range (average ~400, e.g. 362.50, 418.00, 487.50)
+- OSYM points use realistic 100–560 range (average ~400, e.g. 362.50, 418.00, 487.50)
 
 ---
 
@@ -537,7 +537,7 @@ New columns require two changes or existing databases will break on startup:
 
 The helper runs `ALTER TABLE application ADD COLUMN …` for any missing column at startup, keeping existing SQLite files compatible.
 
-Columns currently managed by this helper: `id_number`, `target_program`, `target_semester`, `is_currently_enrolled`, `oidb_notes`, `prep_school_status`, `forwarded_faculty`, `last_edited_by_id`, `last_edited_at`, `oysm_points`, `doc_checker_status`, `doc_checker_errors`, `dean_notes`.
+Columns currently managed by this helper: `id_number`, `target_program`, `target_semester`, `is_currently_enrolled`, `oidb_notes`, `prep_school_status`, `forwarded_faculty`, `last_edited_by_id`, `last_edited_at`, `osym_points`, `doc_checker_status`, `doc_checker_errors`, `dean_notes`.
 
 The same pattern is used for other tables:
 - `_ensure_user_department_column()` — adds `department VARCHAR(120)` to `user` table (for YGK routing)
@@ -609,9 +609,9 @@ Status badges use `.status-badge.status-<status>` classes defined in `main.css`.
 
 **Ranking score formula** (server: `routes/ygk._calc_ranking_score(app_obj)`):
 ```
-ranking_score = (oysm / 560) × 90  +  (current_gpa / 4.0) × 10
+ranking_score = (osym / 560) × 90  +  (current_gpa / 4.0) × 10
 ```
-Result range: 0–100. Uses the applicant's submitted `oysm_points` (90 % weight) and submitted `current_gpa` (10 % weight). Returns `None` when either field is absent. The ranking score is computed at "Send to OIDB" time and stored in `IntibakTableORM.ranking_score`. The intibak template shows the pre-computed score from the server — there is no live JS recalculation.
+Result range: 0–100. Uses the applicant's submitted `osym_points` (90 % weight) and submitted `current_gpa` (10 % weight). Returns `None` when either field is absent. The ranking score is computed at "Send to OIDB" time and stored in `IntibakTableORM.ranking_score`. The intibak template shows the pre-computed score from the server — there is no live JS recalculation.
 
 **YGK class methods** (`classes/users/ygk.py`):
 
@@ -632,7 +632,7 @@ Result range: 0–100. Uses the applicant's submitted `oysm_points` (90 % weight
 | `/intibak/<app_id>/add-course` | POST | Add course row; returns `{success, course}` |
 | `/intibak/course/<course_id>` | DELETE | Remove course row |
 | `/intibak/course/<course_id>` | PATCH | Update grade; returns `{success, course}` |
-| `/intibak/<app_id>/send-to-oidb` | POST | Compute ranking from `current_gpa`+`oysm_points`, save it, set status `intibak_complete` |
+| `/intibak/<app_id>/send-to-oidb` | POST | Compute ranking from `current_gpa`+`osym_points`, save it, set status `intibak_complete` |
 | `/intibak/<app_id>/export-json` | GET | Download intibak table as JSON via `IntibakExporter` |
 | `/view-document/<doc_id>` | GET | Serve transcript PDF |
 
@@ -651,9 +651,9 @@ Result range: 0–100. Uses the applicant's submitted `oysm_points` (90 % weight
 **Intibak Table UI** (`templates/partials/panel_ygk_intibak.html`):
 - Three tables: Left (applicant's courses, manual entry), Right (equivalent courses from curriculum), Taken (courses to be taken from curriculum — no grade column)
 - **Connect Rows** button: multi-select left rows (toggle), single-select right row, confirm → AKTS-weighted grade computed from left rows and written to right row via PATCH
-- **Ranking Score bar**: static display of the pre-computed score (from `current_gpa` + `oysm_points`), injected server-side as `ranking_score`. There is no live GPA recalculation — estimated GPA has been removed.
+- **Ranking Score bar**: static display of the pre-computed score (from `current_gpa` + `osym_points`), injected server-side as `ranking_score`. There is no live GPA recalculation — estimated GPA has been removed.
 - **Export to JSON | Send to OIDB** buttons at the bottom (Save button has been removed — courses auto-save on every grade change)
-- Send to OIDB: computes ranking from `current_gpa`/`oysm_points` on server, saves to `IntibakTableORM.ranking_score`, changes status to `intibak_complete`, then calls `window.dashboardForceRefresh('panel-1', 'check-applicants')` to force-reload the applicant list
+- Send to OIDB: computes ranking from `current_gpa`/`osym_points` on server, saves to `IntibakTableORM.ranking_score`, changes status to `intibak_complete`, then calls `window.dashboardForceRefresh('panel-1', 'check-applicants')` to force-reload the applicant list
 - Applicants with `intibak_complete` status show "Intibak Complete ✓" (non-clickable) instead of the "Open Intibak Table" button
 
 **Inline `<script>` execution**: Tab content is loaded via `innerHTML`. Browsers do not execute `<script>` tags inserted that way. `fetchTabContent` in `dashboard.js` re-executes them by replacing each `<script>` element with a newly created one (standard workaround).
@@ -731,10 +731,10 @@ The modal's OK/Cancel/overlay listeners are wired **once** (guarded by `modal._w
 - All `[required]` inputs/selects must be non-empty. File inputs are handled separately — empty file or wrong type shows a red outline on the `doc-upload-label` wrapper.
 - **Turkish ID** (`input[name="id_number"]`) — `validateTurkishId()` runs the 11-digit checksum. Invalid IDs highlight the field red and block progression.
 - **GPA** — must be a float in [0, 4.0].
-- **OYSM points** — must be a non-negative float.
+- **OSYM points** — must be a non-negative float.
 - **Document files** — must be present, `.pdf` extension, and ≤ 5 MB. Wrong format/size shows an `alert()` in addition to the red outline.
 
-`populateReview()` fills the step-4 review panel including `rv-oysm` (OYSM Points).
+`populateReview()` fills the step-4 review panel including `rv-osym` (OSYM Points).
 
 ### Re-fetch (filter / sort / page)
 

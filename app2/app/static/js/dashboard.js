@@ -438,10 +438,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (isNaN(v) || v < 0 || v > 4.0) { gpaInput.style.borderColor = '#ef4444'; ok = false; }
             }
 
-            const oysmInput = step.querySelector('input[name="oysm_points"]');
-            if (oysmInput && oysmInput.value) {
-                const v = parseFloat(oysmInput.value);
-                if (isNaN(v) || v < 0 || v > 560) { oysmInput.style.borderColor = '#ef4444'; ok = false; }
+            const osymInput = step.querySelector('input[name="osym_points"]');
+            if (osymInput && osymInput.value) {
+                const v = parseFloat(osymInput.value);
+                if (isNaN(v) || v < 0 || v > 560) { osymInput.style.borderColor = '#ef4444'; ok = false; }
             }
 
             return ok;
@@ -468,7 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (get('rv-id')) get('rv-id').textContent = val('id_number');
             if (get('rv-univ')) get('rv-univ').textContent = val('source_university') || '—';
             if (get('rv-gpa')) get('rv-gpa').textContent = val('current_gpa');
-            if (get('rv-oysm')) get('rv-oysm').textContent = val('oysm_points');
+            if (get('rv-osym')) get('rv-osym').textContent = val('osym_points');
             const rvDocs = get('rv-docs');
             if (rvDocs) {
                 rvDocs.innerHTML = '';

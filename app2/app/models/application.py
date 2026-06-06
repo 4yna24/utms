@@ -35,7 +35,7 @@ class ApplicationORM(db.Model):
     # Academic scores
     current_gpa = db.Column(db.String(16), nullable=False)
     # ÖSYS/YKS score submitted by the applicant
-    oysm_points = db.Column(db.String(16), nullable=True)
+    osym_points = db.Column(db.String(16), nullable=True)
 
     # Workflow
     status = db.Column(db.String(32), nullable=False, default="submitted")

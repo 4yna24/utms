@@ -22,7 +22,7 @@ YGK staff selects an applicant from their department's queue, opens the intibak 
 ## Postconditions
 
 - POST-1. The intibak table is saved with all courses and grades entered by YGK.
-- POST-2. The application's ranking score (calculated from the applicant's submitted GPA and OYSM points) is stored.
+- POST-2. The application's ranking score (calculated from the applicant's submitted GPA and OSYM points) is stored.
 - POST-3. The application's status changes to "Intibak Complete".
 - POST-4. The application appears in OIDB's Create Ranking Table tab.
 - POST-5. In the Check Applicants tab the application row shows "Intibak Complete ✓" and no longer has an "Open Intibak Table" button.
@@ -36,7 +36,7 @@ YGK staff selects an applicant from their department's queue, opens the intibak 
 1. YGK navigates to the **Check Applicants** tab from the dashboard.
 2. The tab shows a table of applicants forwarded to YGK's department. Chip filters at the top show Total, Pending, and Approved counts.
 3. YGK clicks **Expand** on a pending applicant row.
-4. The row expands showing applicant details (email, ID number, GPA, OYSM points, university, enrolled status, program, semester, prep school status) and workflow info (status, submission date, routing department). If the application was returned by the Dean before, a Dean note info-box is also shown.
+4. The row expands showing applicant details (email, ID number, GPA, OSYM points, university, enrolled status, program, semester, prep school status) and workflow info (status, submission date, routing department). If the application was returned by the Dean before, a Dean note info-box is also shown.
 5. YGK clicks **Open Intibak Table →**.
 6. The dashboard switches to the **Intibak Table** tab, loading the table for the selected applicant.
 
@@ -47,7 +47,7 @@ YGK staff selects an applicant from their department's queue, opens the intibak 
    - **Applicant's Courses (Home University)** — left table, manual entry.
    - **Equivalent Courses (Target University)** — right table, filled from the curriculum.
    - **Courses to be Taken** — bottom table, filled from the curriculum.
-9. A **Ranking Score** badge (purple, range 0–100) is shown below the right table. It is pre-calculated from the applicant's submitted GPA and OYSM points and does not change as courses are entered.
+9. A **Ranking Score** badge (purple, range 0–100) is shown below the right table. It is pre-calculated from the applicant's submitted GPA and OSYM points and does not change as courses are entered.
 
 ### Phase 3 — Add applicant's home-university courses (left table)
 
@@ -118,7 +118,7 @@ The button turns red briefly and an error message appears inline. The button re-
 - SR-1. All grade changes in the left and right tables autosave immediately when the dropdown changes. There is no manual save button for individual rows.
 - SR-2. The **Courses to be Taken** table has no grade column — it records only what courses the applicant must still complete.
 - SR-3. The left table (home-university courses) uses manual entry only; it does not have a curriculum picker.
-- SR-4. The ranking score displayed on the page is read-only. It is computed from the applicant's submitted GPA and OYSM points, not from the grades entered in the intibak table.
+- SR-4. The ranking score displayed on the page is read-only. It is computed from the applicant's submitted GPA and OSYM points, not from the grades entered in the intibak table.
 - SR-5. **Send to OIDB** does not reload the page; it updates the button and shows an inline message. The Check Applicants tab refreshes in the background.
 - SR-6. Deleting a course row is immediate — the row disappears without a confirmation dialog.
 

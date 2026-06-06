@@ -43,7 +43,7 @@ Dean office staff opens an individual applicant's details and documents, reviews
 4. Dean finds an application and clicks its **Expand** button.
 5. The row expands, showing:
    - A Document Checker status banner (Not yet run / All checks passed / Errors found).
-   - Applicant details (email, ID number, GPA, OYSM points, university, enrollment status).
+   - Applicant details (email, ID number, GPA, OSYM points, university, enrollment status).
    - A document list with a **View** button for each of the five slots.
    - A "Previous return note" info-box if Dean has returned this same application before.
    - Two actions side by side: a **Forward to YGK** button, and a return form with a dropdown and a reason field.
@@ -150,7 +150,7 @@ The **Return** button stays disabled until both the dropdown and the reason text
 **Expected Result:**
 - A green "Doc Checker: All checks passed." banner is shown.
 - All five document slots are listed with a **View** button each.
-- Applicant details (email, GPA, ID number, OYSM points, university, enrollment) are visible.
+- Applicant details (email, GPA, ID number, OSYM points, university, enrollment) are visible.
 - **Forward to YGK** button is present and clickable.
 - **Return** button is present but disabled.
 - The **Return to…** dropdown shows "Return to…" as the default (no selection).

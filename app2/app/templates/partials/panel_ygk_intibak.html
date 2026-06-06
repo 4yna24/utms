@@ -224,7 +224,7 @@
 (function() {
     var APP_ID     = {{ selected_application.id }};
     var curriculum = {{ curriculum | tojson }};
-    var OYSM_POINTS = {{ selected_application.oysm_points | float if selected_application.oysm_points else 'null' }};
+    var OSYM_POINTS = {{ selected_application.osym_points | float if selected_application.osym_points else 'null' }};
     var pickerSide = null;
 
     var gradeOptions = ['', 'AA', 'AB', 'BB', 'BC', 'CC', 'CD', 'DD', 'DF', 'FF'];

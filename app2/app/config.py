@@ -19,8 +19,8 @@ APPLICATION_DOCUMENT_SLOTS = [
     {"slot": 1, "label": "Student Certificate"},
     {"slot": 2, "label": "Transcript"},
     {"slot": 4, "label": "English Proficiency Certificate"},
-    {"slot": 3, "label": "OYSM Points"},
-    {"slot": 5, "label": "OYSM Certificate"},
+    {"slot": 3, "label": "OSYM Points"},
+    {"slot": 5, "label": "OSYM Certificate"},
 ]
 APPLICATION_REQUIRED_DOCUMENT_SLOTS = [s["slot"] for s in APPLICATION_DOCUMENT_SLOTS if not s.get("optional")]
 
