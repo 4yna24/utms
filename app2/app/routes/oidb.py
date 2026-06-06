@@ -201,8 +201,15 @@ def download_ranking_xlsx():
         score = app.intibak_table.ranking_score if app.intibak_table else None
         
         name = app.full_name
-        if anonymize:
-            name = f"Applicant #{app.id}"
+        if anonymize and name:
+            parts = name.split()
+            anonymized_parts = []
+            for part in parts:
+                if len(part) > 3:
+                    anonymized_parts.append(part[:3] + "*" * (len(part) - 3))
+                else:
+                    anonymized_parts.append(part)
+            name = " ".join(anonymized_parts)
             
         row = [
             idx,
@@ -219,9 +226,22 @@ def download_ranking_xlsx():
     wb.save(out)
     out.seek(0)
     
-    return send_file(
+    from datetime import datetime
+    now = datetime.now()
+    year = now.strftime("%Y")
+    date_time_str = now.strftime("%d-%m-%Y-%H-%M-%S")
+    
+    if anonymize:
+        filename = f"Anonymized UTMS Ranking for {year} {date_time_str}.xlsx"
+    else:
+        filename = f"UTMS Ranking for {year} {date_time_str}.xlsx"
+        
+    response = send_file(
         out,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
-        download_name="rankings.xlsx"
+        download_name=filename
     )
+    # Explicitly set headers to guarantee correct name and extension in all browsers
+    response.headers["Content-Disposition"] = f"attachment; filename=\"{filename}\""
+    return response
